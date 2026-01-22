@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Brain Tumor Classifier - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Header with User Info -->
+    <div class="header">
+      <h1>🧠 Brain Tumor Classification</h1>
+      <div class="user-info">
+        <span id="user-email">Loading...</span>
+        <button onclick="logout()" class="btn-logout">Logout</button>
+      </div>
+    </div>
+
+    <p class="subtitle">AI-powered MRI image analysis</p>
+
+    <!-- Prediction Card -->
+    <div class="card">
+      <h2>Upload MRI Image</h2>
+      
+      <input type="file" id="imageInput" accept="image/*" />
+      <button type="button" id="uploadBtn" class="btn-primary">Predict</button>
+
+      <div id="preview"></div>
+      <div id="result"></div>
+    </div>
+
+    <!-- Prediction History -->
+    <div class="card">
+      <h2>Your Recent Predictions</h2>
+      <div id="history-list">
+        <p class="loading">Loading history...</p>
+      </div>
+      <button onclick="loadHistory()" class="btn-secondary">Refresh History</button>
+    </div>
+
+    <!-- Statistics -->
+    <div class="card">
+      <h2>Statistics</h2>
+      <div id="statistics">
+        <p class="loading">Loading statistics...</p>
+      </div>
+    </div>
+
+    <footer>
+      <p>Powered by VGG16 & FastAPI</p>
+    </footer>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
+
 
 import logging
 import os
@@ -19,7 +19,7 @@ class ModelLoader:
                raise FileNotFoundError(f"{self.model_path} does not exist")
           
           try:
-               self.model=load_model(self.model_path)
+               self.model=tf.keras.models.load_model(self.model_path,compile=False)
                logging.info(f"Model loaded Successfully from path {self.model_path}")
           except Exception as e:
                logging.exception(f"Error loading Model : {e}")

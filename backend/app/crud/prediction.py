@@ -14,7 +14,7 @@ from sqlalchemy import func
 from typing import List,Optional
 #for type hinting Optional-this can be None
 
-from datetime import datetime, timedelta,UTC
+from datetime import datetime, timedelta,timezone
 
 from app.database.models import Prediction
 
@@ -70,7 +70,7 @@ def get_user_predictions(db:Session,user_id:int,skip:int=0,limit:int=100)->List[
 # Executes the query and returns all the result
 ##****************
 def get_recent_predictions(db:Session,days:int=7,limit:int=50)->List[Prediction]:
-    cutoff_date=datetime.now(UTC)-timedelta(days=days)
+    cutoff_date=datetime.now(timezone.utc)-timedelta(days=days)
     return (
       db.query(Prediction).filter(Prediction.created_at>=cutoff_date).order_by(Prediction.created_at.desc()).limit(limit).all()
     )

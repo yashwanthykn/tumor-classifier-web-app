@@ -17,7 +17,7 @@ DATABASE_URL=os.getenv('DATABASE_URL',
 
 engine=create_engine(
      DATABASE_URL,
-     pool_per_ping=True, #checks connections health before using 
+     pool_pre_ping=True, #checks connections health before using 
      echo=True #need to set this Flase in productions so no logs
 )
 
@@ -36,7 +36,7 @@ SessionLocal=sessionmaker(
 )
 
 
-Base=declerative_base()
+Base=declarative_base()
 #Base helps in creating a regitry the list of tables and schemea created eay work and also help us in making tables as python classes
 
 def get_db():

@@ -44,7 +44,7 @@ def get_current_user(credentials:HTTPAuthorizationCredentials=Depends(security),
      if user is None:
           raise credentials_exception
      
-     if user.is_active:
+     if not user.is_active:
           raise HTTPException(
                status_code=status.HTTP_400_BAD_REQUEST,
                detail="Inactive user"

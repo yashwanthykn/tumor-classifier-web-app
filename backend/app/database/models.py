@@ -40,7 +40,8 @@ class Prediction(Base):
      
      #timestamps
      created_at=Column(DateTime(timezone=True),server_default=func.now(),nullable=False)
-     #processing_time=Column(Float)
+     
+     processing_time=Column(Float)
      
      #user authentication
      user_id=Column(Integer,ForeignKey("users.id"),nullable=False)
@@ -48,6 +49,8 @@ class Prediction(Base):
      #model version columns
      
      model_version=Column(String(50),default='vgg16_v1')
+     
+     
      
      
      #relationship back to user

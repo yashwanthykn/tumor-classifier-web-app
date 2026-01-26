@@ -12,7 +12,7 @@ def get_user_by_email(db:Session,email:str)->Optional[User]:
 
 
 def get_user_by_username(db:Session,username:str)->Optional[User]:
-     return db.query(User).filter(User.usernme==username).first()
+     return db.query(User).filter(User.username==username).first()
 
 def get_user_by_id(db:Session, user_id:int)->Optional[User]:
      return db.query(User).filter(User.id==user_id).first()
@@ -23,7 +23,7 @@ def create_user(db:Session, email:str, username:str, password:str)->User:
      db_user=User(
           email=email,
           username=username,
-          password=hash_password
+          hashed_password=hash_password
      )
      
      db.add(db_user)

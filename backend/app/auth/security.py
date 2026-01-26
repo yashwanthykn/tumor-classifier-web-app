@@ -31,7 +31,7 @@ def get_password_hash(password:str)->str:
 def create_access_token(data:dict,expires_delta:Optional[timedelta]=None)->str:
      to_encode=data.copy()
      if expires_delta:
-          expire=datetime.now(timezone.utc)
+          expire=datetime.now(timezone.utc) + expires_delta
      else:
           expire=datetime.now(timezone.utc)+timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
      """if expires_delta exist adds that to the current time or not exist addd 30 to the current time and set that as the expire time for the token"""

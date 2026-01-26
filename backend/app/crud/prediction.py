@@ -82,13 +82,13 @@ def get_statistics(db:Session,user_id:int)->dict:
     tumor_count = db.query(Prediction).filter(Prediction.user_id==user_id, Prediction.prediction_label == "Tumor"
     ).count()
     
-    avg_confidence = db.query(func.avg(Prediction.confidence_score)).filter().scalar(Prediction.user_id==user_id)
+    avg_confidence = db.query(func.avg(Prediction.confidence_score)).filter(Prediction.user_id==user_id).scalar()
     
     return{
       "total_predictions": total_predictions,
-      "tumor_count": tumor_count,
+      "tumor_detected": tumor_count,  # FIXED: Changed key name to match frontend expectation
       "average_confidence": round(float(avg_confidence or 0),4),
-      "No_tumor_detelction": total_predictions - tumor_count
+      "no_tumor_detected": total_predictions - tumor_count  # FIXED: Changed key name to match frontend
     }
     
 def delete_prediction(db:Session,prediction_id:int)->bool:

@@ -64,7 +64,7 @@ def get_all_predictions(db:Session,skip:int=0,limit:int=100)->List[Prediction]:
     return db.query(Prediction).offset(skip).limit(limit).all()
 
 def get_user_predictions(db:Session,user_id:int,skip:int=0,limit:int=100)->List[Prediction]:
-    return db.query(Prediction).filter(Prediction.user_id==user_id).offset(skip).limit(limit).order_by(Prediction.created_at.desc()).all()
+    return db.query(Prediction).filter(Prediction.user_id==user_id).order_by(Prediction.created_at.desc()).offset(skip).limit(limit).all()
 ##****************
 # .all() .first() is an ORM execution method 
 # Executes the query and returns all the result

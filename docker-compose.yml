@@ -4,8 +4,8 @@ services:
     container_name: backend
     env_file:
       - .env
-    ports:
-      - "8000:8000"
+    #ports:
+    #  - "8000:8000"
     networks:
       - app_network
     volumes:

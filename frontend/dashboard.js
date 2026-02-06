@@ -44,78 +44,81 @@ function logout() {
   window.location.href = '/index.html';
 }
 
-// Prediction functionality
+
 const imageInput = document.getElementById('imageInput');
 const uploadBtn = document.getElementById('uploadBtn');
 const resultDiv = document.getElementById('result');
 const previewDiv = document.getElementById('preview');
 
-uploadBtn.addEventListener('click', async () => {
-  if (!imageInput.files.length) {
-    alert('Please select an image first.');
-    return;
-  }
+uploadBtn.addEventListener('click', async (e) => {
+     e.preventDefault(); 
+     if (!imageInput.files.length) {
+          alert('Please select an image first.');
+     return;
+     }
 
-  const file = imageInput.files[0];
-  const token = localStorage.getItem('token');
+     const file = imageInput.files[0];
+     const token = localStorage.getItem('token');
 
-  // Show preview
-  previewDiv.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Preview" />`;
-  resultDiv.innerHTML = '<p class="loading">Analyzing image...</p>';
+     // Show preview
+     previewDiv.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Preview" />`;
+     resultDiv.innerHTML = '<p class="loading">Analyzing image...</p>';
 
-  const formData = new FormData();
-  formData.append('file', file);
+     const formData = new FormData();
+     formData.append('file', file);
 
-  try {
-    const response = await fetch('/api/predict', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`  // ← Send token with request
-      },
-      body: formData,
-    });
+     try {
+          const response = await fetch('/api/predict', {
+               method: 'POST',
+               headers: {
+                    'Authorization': `Bearer ${token}`  // ← Send token with request
+               },
+               body: formData,
+          });
 
-    if (response.status === 401) {
-      // Token expired or invalid
-      alert('Session expired. Please login again.');
-      logout();
-      return;
-    }
+     
+     if (response.status === 401) {
+          // Token expired or invalid
+          alert('Session expired. Please login again.');
+          logout();
+          return;
+     }
+          
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
-    }
+          if (!response.ok) {
+               throw new Error(`Server error: ${response.status}`);
+          }
 
-    const data = await response.json();
-    
-    // Display result
-    const confidencePercent = (data.confidence * 100).toFixed(2);
-    const resultClass = data.label === 'Tumor' ? 'tumor-detected' : 'no-tumor';
-    
-    resultDiv.innerHTML = `
-      <div class="result-box ${resultClass}">
-        <h3>Prediction Result</h3>
-        <p class="label">${data.label}</p>
-        <p class="confidence">Confidence: ${confidencePercent}%</p>
-      </div>
-    `;
+          const data = await response.json();
+          
+          // Display result
+          const confidencePercent = (data.confidence * 100).toFixed(2);
+          const resultClass = data.label === 'Tumor' ? 'tumor-detected' : 'no-tumor';
+          
+          resultDiv.innerHTML = `
+               <div class="result-box ${resultClass}">
+               <h3>Prediction Result</h3>
+               <p class="label">${data.label}</p>
+               <p class="confidence">Confidence: ${confidencePercent}%</p>
+               </div>
+          `;
 
-    // Refresh history after new prediction
-    setTimeout(loadHistory, 1000);
+          // Refresh history after new prediction
+          setTimeout(loadHistory, 1000);
 
-  } catch (error) {
-    resultDiv.innerHTML = `<p class="error">❌ ${error.message}</p>`;
-  }
+          } catch (error) {
+          resultDiv.innerHTML = `<p class="error">❌ ${error.message}</p>`;
+          }
 });
 
-// Load prediction history
+     // Load prediction history
 async function loadHistory() {
   const token = localStorage.getItem('token');
   const historyDiv = document.getElementById('history-list');
 
   try {
     const response = await fetch('/api/predictions?limit=10', {
-      headers: {
+     headers: {
         'Authorization': `Bearer ${token}`
       }
     });

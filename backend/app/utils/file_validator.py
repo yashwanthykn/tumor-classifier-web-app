@@ -1,102 +1,94 @@
-import magic
 from PIL import Image
 from fastapi import UploadFile, HTTPException, status
 import io
+import numpy as np
+import os
+import re
 
-# Allowed MIME types for images
-ALLOWED_MIME_TYPES = [
-    'image/jpeg',
-    'image/jpg', 
-    'image/png',
-    'image/webp',
-    'image/bmp'
-]
 
-# Maximum file size: 10MB
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
 
-# Minimum dimensions (prevent 1x1 pixel attacks)
+# Upload limits
+MAX_FILE_SIZE = 10 * 1024 * 1024  # bytes
+
+
+# Image geometry constraints
+
 MIN_WIDTH = 50
 MIN_HEIGHT = 50
-
-# Maximum dimensions (prevent memory exhaustion)
 MAX_WIDTH = 5000
 MAX_HEIGHT = 5000
 
 
-async def validate_image_file(file: UploadFile) -> None:
-    """
-    Comprehensive image file validation.
-    
-    Checks:
-    1. File size
-    2. MIME type (via magic numbers)
-    3. File integrity (can be opened as image)
-    4. Image dimensions
-    
-    Raises HTTPException if validation fails.
-    """
-    
-    # Step 1: Validate file size
-    file.file.seek(0, 2)  # Seek to end
+ALLOWED_FORMATS = {"PNG", "JPEG", "BMP", "WEBP"}
+
+async def validate_image_file(file: UploadFile) -> bytes:
+    # Step 1: File size
+    file.file.seek(0, 2)
     file_size = file.file.tell()
-    file.file.seek(0)  # Reset to beginning
-    
+    file.file.seek(0)
+    print("file_size")
+    if file_size == 0:
+        raise HTTPException(status_code=200, detail="Empty file uploaded")
+
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.1f}MB"
+            status_code=413,
+            detail="File too large (max 10MB)"
         )
-    
-    if file_size == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Empty file uploaded"
-        )
-    
-    # Step 2: Read file content for validation
+
+    # Step 2: Read content
     file_content = await file.read()
-    await file.seek(0)  # Reset for later use
-    
-    # Step 3: Validate MIME type using magic numbers (not just extension)
-    mime_type = magic.from_buffer(file_content, mime=True)
-    
-    if mime_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type: {mime_type}. Only images are allowed (JPEG, PNG, WebP, BMP)."
-        )
-    
-    # Step 4: Validate file can be opened as image (integrity check)
+
+    if len(file_content) != file_size:
+        raise HTTPException(status_code=401, detail="Incomplete upload")
+
+    # Step 3: Open image (REAL validation)
     try:
         img = Image.open(io.BytesIO(file_content))
-        img.verify()  # Verify it's a valid image
-        
-        # Re-open for dimension check (verify() closes the image)
+        img.verify()
         img = Image.open(io.BytesIO(file_content))
-        width, height = img.size
-        
-    except Exception as e:
+    except Exception:
+        raise HTTPException(status_code=402, detail="Invalid image file")
+
+    # Step 4: Format validation (replacement for magic)
+    if img.format not in ALLOWED_FORMATS:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or corrupted image file"
+            status_code=403,
+            detail=f"Unsupported format: {img.format}"
         )
-    
-    # Step 5: Validate dimensions
+
+    # Step 5: Medical constraints
+    width, height = img.size
+
     if width < MIN_WIDTH or height < MIN_HEIGHT:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image too small. Minimum dimensions: {MIN_WIDTH}x{MIN_HEIGHT}px"
-        )
-    
+        raise HTTPException(status_code=404, detail="Image too small")
+
     if width > MAX_WIDTH or height > MAX_HEIGHT:
+        raise HTTPException(status_code=405, detail="Image too large")
+
+    # MRI/CT-specific checks
+    """if img.mode not in ("L", "I;16", "I"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Image too large. Maximum dimensions: {MAX_WIDTH}x{MAX_HEIGHT}px"
+            status_code=406,
+            detail="RGB images not allowed for MRI/CT"
+        )"""
+
+    # Reject 8-bit medical images
+    """if img.mode == "L":
+        raise HTTPException(
+            status_code=407,
+            detail="8-bit images not allowed for medical inference"
+        )"""
+
+    # Intensity sanity check
+    pixels = np.array(img)
+    if pixels.std() < 5:
+        raise HTTPException(
+            status_code=408,
+            detail="Low-contrast or invalid medical scan"
         )
-    
-    # All validations passed
-    return None
+
+    return file_content
 
 
 def sanitize_filename(filename: str) -> str:
@@ -104,16 +96,11 @@ def sanitize_filename(filename: str) -> str:
     Sanitize filename to prevent path traversal attacks.
     
     Removes dangerous characters and paths.
-    """
-    import os
-    import re
-    
+    """   
     # Get just the filename (no path)
     filename = os.path.basename(filename)
-    
     # Remove any non-alphanumeric characters except dots, dashes, underscores
     filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
-    
     # Limit length
     if len(filename) > 100:
         name, ext = os.path.splitext(filename)

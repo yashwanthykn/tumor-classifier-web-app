@@ -1,0 +1,62 @@
+services:
+  tumor_db_test:
+    image: postgres:15
+    container_name: tumor_db_test
+    environment:
+      POSTGRES_USER: tumor_user
+      POSTGRES_PASSWORD: tumor_pass
+      POSTGRES_DB: tumor_classifier_db
+    ports:
+      - "5432:5432" 
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tumor_user -d tumor_classifier_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+  
+
+  backend:
+    build: ./backend
+    container_name: backend
+    depends_on:
+      tumor_db_test:
+        condition: service_healthy
+        #depends on the healthcheck
+        #only effect start up order it does'nt restarts if dependency becomes unhealthy later on but we need to backend error handling to manage it.
+    environment:
+      - DATABASE_URL=postgresql://tumor_user:tumor_pass@tumor_db_test:5432/tumor_classifier_db
+      - SECRET_KEY=UiMaV7qrSTXk2m51dMMiUXHbzAvVcK4lyHC3YZLknixPBP4vAdUU7udejZV
+    ports:
+      - "8000:8000"  
+    networks:
+      - app_network
+    volumes:
+      - backend_uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  postgres_data: 
+  backend_uploads: 
+
+
+
+
+
+

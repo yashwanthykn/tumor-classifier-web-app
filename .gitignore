@@ -36,3 +36,9 @@ backend/uploads/*
 # Database
 *.db
 *.sqlite3
+
+include
+pyvenv.cfg
+share
+Lib
+Scripts

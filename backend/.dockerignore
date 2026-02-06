@@ -9,6 +9,6 @@ __pycache__/
 .git/
 .gitignore
 
-test_image/
+
 uploads/
 *.log

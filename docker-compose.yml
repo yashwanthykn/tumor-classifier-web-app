@@ -1,29 +1,27 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
     container_name: backend
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - SECRET_KEY=${SECRET_KEY}
-      - MODEL_PATH=${MODEL_PATH}
-      - ENVIRONMENT=production
     env_file:
       - .env
-    restart: unless-stopped
+    ports:
+      - "8000:8000"
     networks:
       - app_network
     volumes:
-      - backend_uploads:/app/backend/uploads
+      - backend_uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   frontend:
     build: ./frontend
-    container_name: frontend_ui
+    container_name: frontend
     ports:
-      - "80:80"
       - "3000:80"
     depends_on:
       - backend

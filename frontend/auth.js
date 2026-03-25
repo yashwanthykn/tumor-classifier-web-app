@@ -1,98 +1,110 @@
-function showTab(tab){
-     const loginForm = document.getElementById('login-form');
-     const registerForm = document.getElementById('register-form');
-     const tabs = document.querySelectorAll('.tab-btn');
+/* ============================================================
+   auth.js — Login & Registration Logic
+   ClassifierBT.com
+   ============================================================ */
 
-     if (tab === 'login') {
-          loginForm.classList.add('active');
-          registerForm.classList.remove('active');
-          tabs[0].classList.add('active');
-          tabs[1].classList.remove('active');
-     }
-     else {
-          registerForm.classList.add('active');
-          loginForm.classList.remove('active');
-          tabs[1].classList.add('active');
-          tabs[0].classList.remove('active');
-     }
+// ── Tab switching ────────────────────────────────────────────
+const loginTab = document.getElementById("loginTab");
+const registerTab = document.getElementById("registerTab");
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+
+function activateTab(tab) {
+  if (tab === "login") {
+    loginForm.classList.remove("auth-form--hidden");
+    registerForm.classList.add("auth-form--hidden");
+    loginTab.classList.add("auth-tab--active");
+    loginTab.setAttribute("aria-selected", "true");
+    registerTab.classList.remove("auth-tab--active");
+    registerTab.setAttribute("aria-selected", "false");
+  } else {
+    registerForm.classList.remove("auth-form--hidden");
+    loginForm.classList.add("auth-form--hidden");
+    registerTab.classList.add("auth-tab--active");
+    registerTab.setAttribute("aria-selected", "true");
+    loginTab.classList.remove("auth-tab--active");
+    loginTab.setAttribute("aria-selected", "false");
+  }
 }
 
-// Login form handler
-document.getElementById('loginForm').addEventListener('submit',async(e)=>{
+loginTab.addEventListener("click", () => activateTab("login"));
+registerTab.addEventListener("click", () => activateTab("register"));
 
-     e.preventDefault();
-     const email=document.getElementById('login-email').value;
-     //value text inside the input value
-     const password=document.getElementById('login-password').value;
-     const messageDiv=document.getElementById('login-message');
+// ── Helper: show message ─────────────────────────────────────
+function showMessage(divId, text, type) {
+  const el = document.getElementById(divId);
+  el.textContent = text;
+  el.className = `form-message ${type}`;
+}
 
-     messageDiv.innerHTML='<p class="loading">Logging in...</p>';
+// ── Login form ───────────────────────────────────────────────
+loginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-     try{
-          const response=await fetch('/api/auth/login',{
-               method:'POST',
-               headers:{
-                    'Content-Type':'application/json',
-               },
-               body:JSON.stringify({email,password}),
-          });
-          const data=await response.json()
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
 
-          if (!response.ok){
-               throw new Error(data.detail||'Login failed');
-          }
-          //storing token in the localstorage so the broswer i.e window can access it
-          localStorage.setItem('token',data.access_token)
+  showMessage("login-message", "Authorizing access", "loading");
 
-          messageDiv.innerHTML = '<p class="success">Login successful! Redirecting...</p>';
-          
-          setTimeout(() => {
-               window.location.href = '/dashboard.html';
-          },1000);
-     }
-     catch (error) {
-          messageDiv.innerHTML = `<p class="error">❌ ${error.message}</p>`;
-     }
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Login failed");
+    }
+
+    localStorage.setItem("token", data.access_token);
+    showMessage("login-message", "Access granted", "success");
+
+    setTimeout(() => {
+      window.location.href = "/dashboard.html";
+    }, 1000);
+  } catch (error) {
+    showMessage("login-message", error.message, "error");
+  }
 });
 
+// ── Register form ────────────────────────────────────────────
+registerForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-//Register Form Handler
-document.getElementById('registerForm').addEventListener('submit', async (e) => {
-     e.preventDefault();
-     const email = document.getElementById('register-email').value;
-     const username = document.getElementById('register-username').value;
-     const password = document.getElementById('register-password').value;
-     const messageDiv = document.getElementById('register-message');
+  const username = document.getElementById("register-username").value;
+  const email = document.getElementById("register-email").value;
+  const password = document.getElementById("register-password").value;
 
-     messageDiv.innerHTML = '<p class="loading">Creating account...</p>';
+  showMessage("register-message", "Creating account…", "loading");
 
-     try {
-          const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: {
-               'Content-Type': 'application/json',
-               },
-          body: JSON.stringify({ email, username, password }),
-          });
+  try {
+    const response = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, username, password }),
+    });
 
-          const data = await response.json();
+    const data = await response.json();
 
-          if (!response.ok) {
-               throw new Error(data.detail || 'Registration failed');
-          }
+    if (!response.ok) {
+      throw new Error(data.detail || "Registration failed");
+    }
 
-          messageDiv.innerHTML = '<p class="success">✅ Account created! Please login.</p>';
+    showMessage(
+      "register-message",
+      "✓ Account created. Please login.",
+      "success",
+    );
+    registerForm.reset();
 
-          // Clear form
-          document.getElementById('registerForm').reset();
-    
-          // Switch to login tab after 2 seconds
-          setTimeout(() => {
-               showTab('login');
-               document.getElementById('login-email').value = email;
-          }, 2000);
-     }
-     catch (error){
-          messageDiv.innerHTML = `<p class="error">❌ ${error.message}</p>`;
-     }
+    setTimeout(() => {
+      activateTab("login");
+      document.getElementById("login-email").value = email;
+    }, 2000);
+  } catch (error) {
+    showMessage("register-message", error.message, "error");
+  }
 });

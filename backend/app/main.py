@@ -4,20 +4,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.predict import router as predict_router
 
 from app.api.auth import router as auth_router
+from app.api.chat import router as chat_router
+
 from app.database.database import Base, engine
+from app.utils.logger import logger
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import time
+
 # Create all database tables
 Base.metadata.create_all(bind=engine)
 
 # App initialization
 app = FastAPI(
-    title='Tumor Detection API',
-    description='Detects brain tumor from MRI images',
-    version='2.0.0'
+    title="Tumor Detection API",
+    description="Detects brain tumor from MRI images",
+    version="2.0.0",
 )
 
 # Add rate limiter to app state
@@ -38,13 +42,16 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+
 # Health check endpoint
-@app.get('/health')
+@app.get("/health")
 def health_check():
-    return {'status': "ok"}
+    return {"status": "ok"}
+
 
 # Include routers
-app.include_router(predict_router, prefix='/api', tags=["Predictions"])
-app.include_router(auth_router, prefix='/api/auth', tags=["Authentication"])
+app.include_router(predict_router, prefix="/api", tags=["Predictions"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(chat_router, prefix="/api/chat", tags=["chatbot"])
 
-print("FastAPI app loaded correctly")
+logger.info("APP loaded successfully")

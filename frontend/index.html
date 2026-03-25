@@ -1,109 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Brain Tumor Classifier - Login</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="style.css" />
+  <title>Clinical Precision | Brain Tumor Classifier</title>
+
+  <!-- Design System -->
+  <link rel="stylesheet" href="clinical.css" />
+  <!-- Page-specific styles -->
+  <link rel="stylesheet" href="index.css" />
+  <!-- Tailwind (utility layer only — design tokens live in clinical.css) -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script src="tailwind.config.js"></script>
 </head>
-<body>
-  <div class="container">
-    <h1>Brain Tumor Classification</h1>
-    <p class="subtitle">AI-powered MRI image analysis</p>
 
-    <!-- Tab Navigation -->
-    <div class="tabs">
-      <button class="tab-btn active" onclick="showTab('login')">Login</button>
-      <button class="tab-btn" onclick="showTab('register')">Register</button>
+<body class="auth-page">
+
+  <!-- ── Decorative ambient blobs ─────────────────────────── -->
+  <div class="ambient-blob blob-top-right" aria-hidden="true"></div>
+  <div class="ambient-blob blob-bottom-left" aria-hidden="true"></div>
+
+  <!-- ── Top bar ──────────────────────────────────────────── -->
+  <header class="glass-header auth-header">
+    <div class="brand">
+      <span class="material-symbols-outlined brand-icon">neurology</span>
+      <span class="brand-name headline">ClassifierBT.com</span>
     </div>
+    <span class="portal-label">JWT • Hashed Credentials • HTTPS (TLS)</span>
+  </header>
 
-    <!-- Login Form -->
-    <div id="login-form" class="auth-form active">
-      <div class="card">
-        <h2>Login to Your Account</h2>
-        
-        <form id="loginForm">
-          <div class="form-group">
-            <label for="login-email">Email</label>
-            <input 
-              type="email" 
-              id="login-email" 
-              name="email" 
-              required 
-              placeholder="john@example.com"
-            />
-          </div>
+  <!-- ── Main ─────────────────────────────────────────────── -->
+  <main class="auth-main">
+    <div class="auth-container">
 
-          <div class="form-group">
-            <label for="login-password">Password</label>
-            <input 
-              type="password" 
-              id="login-password" 
-              name="password" 
-              required 
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button type="submit" class="btn-primary">Login</button>
-        </form>
-
-        <div id="login-message" class="message"></div>
+      <!-- Hero -->
+      <div class="auth-hero">
+        <h1 class="headline auth-title">Brain Tumor Classifier</h1>
+        <p class="auth-subtitle">Brain MRI tumor classification using a VGG16 CNN(demo project).</p>
       </div>
-    </div>
 
-    <!-- Register Form -->
-    <div id="register-form" class="auth-form">
-      <div class="card">
-        <h2>Create New Account</h2>
-        
-        <form id="registerForm">
-          <div class="form-group">
-            <label for="register-email">Email</label>
-            <input 
-              type="email" 
-              id="register-email" 
-              name="email" 
-              required 
-              placeholder="john@example.com"
-            />
-          </div>
+      <!-- Form card -->
+      <div class="auth-card card">
 
-          <div class="form-group">
-            <label for="register-username">Username</label>
-            <input 
-              type="text" 
-              id="register-username" 
-              name="username" 
-              required 
-              placeholder="johndoe"
-            />
-          </div>
+        <!-- Tabs -->
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab auth-tab--active" id="loginTab"
+                  role="tab" aria-selected="true" aria-controls="loginPanel">
+            Login
+          </button>
+          <button class="auth-tab" id="registerTab"
+                  role="tab" aria-selected="false" aria-controls="registerPanel">
+            Register
+          </button>
+        </div>
 
-          <div class="form-group">
-            <label for="register-password">Password</label>
-            <input 
-              type="password" 
-              id="register-password" 
-              name="password" 
-              required 
-              placeholder="••••••••"
-              minlength="6"
-            />
-          </div>
+        <div class="auth-forms">
 
-          <button type="submit" class="btn-primary">Register</button>
-        </form>
+          <!-- ── Login Form ──────────────────────────────── -->
+          <form class="auth-form" id="loginForm" role="tabpanel" id="loginPanel">
 
-        <div id="register-message" class="message"></div>
+            <div class="form-group">
+              <label class="form-label" for="login-email">EMAIL</label>
+              <div class="input-icon-wrap">
+                <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+                <input class="input-field" type="email" id="login-email"
+                       placeholder="login@example.com" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="form-label-row">
+                <label class="form-label" for="login-password">PASSWORD</label>
+                <a class="form-link" href="#">Forgot?</a>
+              </div>
+              <div class="input-icon-wrap">
+                <span class="material-symbols-outlined" aria-hidden="true">lock</span>
+                <input class="input-field" type="password" id="login-password"
+                       placeholder="••••••••" required />
+              </div>
+            </div>
+
+            <div id="login-message" class="form-message" aria-live="polite"></div>
+
+            <button class="btn-primary" type="submit">
+              LOGIN
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+            </button>
+
+          </form>
+
+          <!-- ── Register Form ──────────────────────────── -->
+          <form class="auth-form auth-form--hidden" id="registerForm" role="tabpanel" id="registerPanel">
+
+            <div class="form-group">
+              <label class="form-label" for="register-username">Username</label>
+              <input class="input-field" type="text" id="register-username"
+                     placeholder="dr_smith" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-email">EMAIL</label>
+              <input class="input-field" type="email" id="register-email"
+                     placeholder="s.chen@medicalcenter.org" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="register-password">PASSWORD</label>
+              <input class="input-field" type="password" id="register-password"
+                     placeholder="Minimum 8 characters" required />
+            </div>
+
+            <div id="register-message" class="form-message" aria-live="polite"></div>
+
+            <button class="btn-primary" type="submit">
+              Create  Account
+              <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+            </button>
+
+          </form>
+
+        </div>
       </div>
+
+      <!-- Trust badges -->
+
+
     </div>
+  </main>
 
-    <footer>
-      <p>Powered by VGG16 & FastAPI | Secured with JWT</p>
-    </footer>
-  </div>
+  <!-- ── Footer ───────────────────────────────────────────── -->
+  <footer class="auth-footer">
+    <p>
+      © 2026 Demo Project. This application is for educational use only and not for medical diagnosis.
+    </p>
+  </footer>
 
+  <!-- JS -->
   <script src="auth.js"></script>
+
 </body>
 </html>

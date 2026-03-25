@@ -29,7 +29,9 @@ services:
         #only effect start up order it does'nt restarts if dependency becomes unhealthy later on but we need to backend error handling to manage it.
     environment:
       - DATABASE_URL=postgresql://tumor_user:tumor_pass@tumor_db_test:5432/tumor_classifier_db
-      - SECRET_KEY=UiMaV7qrSTXk2m51dMMiUXHbzAvVcK4lyHC3YZLknixPBP4vAdUU7udejZV
+      - SECRET_KEY=${SECRET_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      
     ports:
       - "8000:8000"  
     networks:

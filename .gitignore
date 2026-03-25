@@ -42,3 +42,8 @@ pyvenv.cfg
 share
 Lib
 Scripts
+
+
+dont git me.txt
+
+frontend/notnginx.conf

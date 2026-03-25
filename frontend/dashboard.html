@@ -1,56 +1,206 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Brain Tumor Classifier - Dashboard</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="style.css" />
+  <title>Clinical Precision | Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="dashboard.css" />
 </head>
+
 <body>
-  <div class="container">
-    <!-- Header with User Info -->
-    <div class="header">
-      <h1>Brain Tumor Classification</h1>
-      <div class="user-info">
-        <span id="user-email">Loading...</span>
-        <button onclick="logout()" class="btn-logout">Logout</button>
+
+  <!-- ══ TOP HEADER ══════════════════════════════════════════ -->
+  <header class="dash-header">
+    <!-- Brand -->
+    <div class="dash-brand">
+      <div class="dash-brand__icon">
+        <span class="material-symbols-outlined">biotech</span>
+      </div>
+      <div class="dash-brand__text">
+        <span class="dash-brand__name">ClassifierBT.com</span>
       </div>
     </div>
 
-    <p class="subtitle">AI-powered MRI image analysis</p>
+    <!-- Center nav -->
+    <nav class="dash-nav">
+      <a href="dashboard.html" class="dash-nav__link dash-nav__link--active">
+        <span class="material-symbols-outlined">dashboard</span>
+        Dashboard
+      </a>
+      <a href="chat.html" class="dash-nav__link dash-nav__link--inactive">
+        <span class="material-symbols-outlined">smart_toy</span>
+        AI Assistant
+      </a>
+    </nav>
 
-    <!-- Prediction Card -->
-    <div class="card">
-      <h2>Upload MRI Image</h2>
-      
-      <input type="file" id="imageInput" accept="image/*" />
-      <button type="button" id="uploadBtn" class="btn-primary">Predict</button>
-
-      <div id="preview"></div>
-      <div id="result"></div>
-    </div>
-
-    <!-- Prediction History -->
-    <div class="card">
-      <h2>Your Recent Predictions</h2>
-      <div id="history-list">
-        <p class="loading">Loading history...</p>
+    <!-- Right: user + logout -->
+    <div class="dash-header-right">
+      <div class="dash-user-meta">
+        <span class="dash-user-email" id="userEmail">Loading…</span>
       </div>
-      <button onclick="loadHistory()" class="btn-secondary">Refresh History</button>
+      <div class="dash-avatar">
+        <span class="material-symbols-outlined">person</span>
+      </div>
+      <button id="logoutBtn" class="dash-logout" title="Logout">
+        <span class="material-symbols-outlined">logout</span>
+      </button>
     </div>
+  </header>
 
-    <!-- Statistics -->
-    <div class="card">
-      <h2>Statistics</h2>
-      <div id="statistics">
-        <p class="loading">Loading statistics...</p>
+  <!-- ══ PAGE BODY ════════════════════════════════════════════ -->
+  <div class="page-body">
+
+    <!-- ── Row 1: Welcome banner ──────────────────────────── -->
+    <div class="welcome-banner">
+      <div class="welcome-banner__content">
+        <div class="welcome-banner__greeting">
+          <h1 class="welcome-banner__title">Hi, <span class="welcome-banner__name" id="welcomeName"></span></h1>
+        </div>
+        <p class="welcome-banner__sub">
+          Upload an MRI scan to begin classification
+        </p>
+      </div>
+      <div class="welcome-banner__watermark" aria-hidden="true">
+        <span class="material-symbols-outlined">neurology</span>
       </div>
     </div>
 
-    <footer>
-      <p>Powered by VGG16 & FastAPI</p>
-    </footer>
+    <!-- ── Row 2: Stats | Image | History ─────────────────── -->
+    <div class="main-grid">
+
+      <!-- Stats column -->
+      <div class="stats-col">
+        <div class="stat-card">
+          <p class="stat-card__label">Total Scans</p>
+          <p class="stat-card__value" id="total-count">—</p>
+        </div>
+        <div class="stat-card stat-card--alert">
+          <p class="stat-card__label">Detected</p>
+          <p class="stat-card__value stat-card__value--red" id="tumor-count">—</p>
+        </div>
+        <div class="stat-card stat-card--safe">
+          <p class="stat-card__label">No Tumor</p>
+          <p class="stat-card__value stat-card__value--green" id="no-tumor-count">—</p>
+        </div>
+        <div class="stat-card">
+          <p class="stat-card__label">Avg Confidence</p>
+          <p class="stat-card__value" id="avg-confidence">—</p>
+        </div>
+      </div>
+
+      <!-- Center: Image upload -->
+      <div class="center-col">
+
+        <!-- Upload card -->
+        <div class="upload-card">
+
+          <!-- Card header -->
+          <div class="upload-card__header">
+            <h2 class="upload-card__title">Image Analysis Workspace</h2>
+            <span class="upload-card__badge">JPEG / PNG / BMP</span>
+          </div>
+
+          <!-- Drop zone -->
+          <div id="dropZone" class="drop-zone">
+            <input type="file" id="imageInput" accept="image/*" hidden />
+            <div id="dropInner" onclick="document.getElementById('imageInput').click()">
+              <div class="drop-icon-wrap">
+                <span class="material-symbols-outlined">add_photo_alternate</span>
+              </div>
+              <p class="drop-zone__text">
+                Drop MRI scan here or <span class="drop-zone__link">click to browse</span>
+              </p>
+              <p class="drop-zone__hint">Supports JPEG · PNG · BMP · Max 10MB</p>
+            </div>
+          </div>
+
+          <!-- Preview + result (replaces drop zone via JS) -->
+          <div id="previewSection" class="preview-section hidden">
+            <div class="preview-layout">
+
+              <!-- Image preview -->
+              <div class="preview-image-wrap">
+                <img id="imagePreview" src="" alt="MRI Preview" class="preview-image" />
+              </div>
+
+              <!-- Result panel -->
+              <div class="result-panel">
+                <div class="result-box">
+                  <p class="result-box__label">Diagnostic Confidence</p>
+                  <div id="resultDisplay" class="hidden">
+                    <div class="result-box__row">
+                      <span class="result-box__prediction" id="predictionLabel">—</span>
+                      <span class="result-box__score" id="predictionScore">—</span>
+                    </div>
+                    <div class="result-box__bar-track">
+                      <div id="confidenceBar" class="result-box__bar-fill"></div>
+                    </div>
+                    <p class="result-box__meta">Model: VGG16 v1 · For clinical reference only</p>
+                  </div>
+                  <p id="placeholderText" class="result-box__placeholder">
+                    Awaiting neural network classification…
+                  </p>
+                </div>
+
+                <div class="action-row">
+                  <button id="reUploadBtn" class="btn-secondary">
+                    <span class="material-symbols-outlined">refresh</span>
+                    New Scan
+                  </button>
+                  <button id="uploadBtn" class="btn-predict">
+                    <span class="material-symbols-outlined">analytics</span>
+                    Predict Classification
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Chat bot link -->
+        <a href="chat.html" class="chat-link">
+          <div class="chat-link__icon">
+            <span class="material-symbols-outlined">smart_toy</span>
+          </div>
+          <div>
+            <p class="chat-link__title">Open AI Medical Assistant</p>
+            <p class="chat-link__sub">Ask about results · Query scan history · Powered by Llama 3.3</p>
+          </div>
+          <span class="material-symbols-outlined chat-link__arrow">arrow_forward</span>
+        </a>
+
+      </div>
+
+      <!-- History column -->
+      <div class="history-col">
+        <div class="history-card">
+          <div class="history-card__header">
+            <h2 class="history-card__title">Recent History</h2>
+          </div>
+          <div id="history-list" class="history-list">
+            <p class="history-list__placeholder">Loading…</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
+
+  <!-- ══ MOBILE BOTTOM NAV ══════════════════════════════════ -->
+  <nav class="mobile-nav">
+    <a href="dashboard.html" class="mobile-nav__item mobile-nav__item--active">
+      <span class="material-symbols-outlined">dashboard</span>
+      <span class="mobile-nav__label">Dashboard</span>
+    </a>
+    <a href="chat.html" class="mobile-nav__item">
+      <span class="material-symbols-outlined">smart_toy</span>
+      <span class="mobile-nav__label">AI Assistant</span>
+    </a>
+  </nav>
 
   <script src="dashboard.js"></script>
 </body>

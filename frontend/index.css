@@ -1,0 +1,270 @@
+/* ============================================================
+   index.css — Login / Register Page Styles
+   Inherits design tokens from clinical.css
+   ============================================================ */
+
+/* ── Page layout ──────────────────────────────────────────── */
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.auth-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.brand-icon {
+  color: var(--primary);
+  font-size: 1.5rem;
+}
+.brand-name {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #1e3a8a;
+  letter-spacing: -0.03em;
+}
+.portal-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  display: none;
+}
+@media (min-width: 768px) { .portal-label { display: block; } }
+
+/* ── Main / centering ─────────────────────────────────────── */
+.auth-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5.5rem 1rem 3rem;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ── Hero text ────────────────────────────────────────────── */
+.auth-hero { text-align: center; }
+
+.auth-title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: var(--on-surface);
+  margin-bottom: 0.5rem;
+}
+.auth-subtitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+}
+
+/* ── Auth card ────────────────────────────────────────────── */
+.auth-card {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 32px 64px -12px rgba(0, 74, 198, 0.08);
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+.auth-tabs {
+  display: flex;
+  border-bottom: 1.5px solid rgba(195, 198, 215, 0.2);
+}
+.auth-tab {
+  flex: 1;
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
+}
+.auth-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -1.5px;
+  left: 0; right: 0;
+  height: 2px;
+  background: var(--primary);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.auth-tab--active {
+  color: var(--primary);
+}
+.auth-tab--active::after { opacity: 1; }
+.auth-tab:not(.auth-tab--active):hover {
+  background: var(--surface-container-low);
+}
+
+/* ── Forms ────────────────────────────────────────────────── */
+.auth-forms { padding: 2rem; }
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.auth-form--hidden { display: none; }
+
+.form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.form-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+.form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.form-link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+.form-link:hover { text-decoration: underline; }
+
+/* ── Message (success / error feedback) ──────────────────── */
+.form-message {
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-height: 1.25rem;
+  border-radius: var(--radius-md);
+  padding: 0;
+  transition: all 0.2s;
+}
+.form-message.success {
+  color: #065f46;
+  background: #d1fae5;
+  padding: 0.5rem 0.875rem;
+  border-radius: 8px;
+  border-left: 3px solid #006a61;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.form-message.error {
+  color: var(--tertiary);
+  background: rgba(215, 17, 66, 0.08);
+  padding: 0.625rem 0.875rem;
+}
+.form-message.loading {
+  color: var(--primary);
+  padding: 0.625rem 0.875rem;
+}
+
+/* ── Trust badges ─────────────────────────────────────────── */
+.trust-badges {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  opacity: 0.55;
+  filter: grayscale(0.4);
+  transition: opacity 0.4s, filter 0.4s;
+}
+.trust-badges:hover { opacity: 1; filter: grayscale(0); }
+
+.trust-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+.trust-badge .material-symbols-outlined { font-size: 1.5rem; }
+
+/* ── Footer ───────────────────────────────────────────────── */
+.auth-footer {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  border-top: 1px solid rgba(195, 198, 215, 0.12);
+}
+.auth-footer p {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  letter-spacing: 0.01em;
+}
+.auth-footer a {
+  color: var(--on-surface-variant);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.auth-footer a:hover { color: var(--primary); }
+.footer-sep { margin: 0 0.5rem; }
+
+/* ── Ambient decorative blobs ─────────────────────────────── */
+.ambient-blob {
+  position: fixed;
+  border-radius: 9999px;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(100px);
+}
+.blob-top-right {
+  top: -10%;
+  right: -5%;
+  width: 40%;
+  aspect-ratio: 1;
+  background: rgba(0, 74, 198, 0.05);
+}
+.blob-bottom-left {
+  bottom: -10%;
+  left: -5%;
+  width: 30%;
+  aspect-ratio: 1;
+  background: rgba(0, 106, 97, 0.05);
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+
+/* Small phones (≤ 380px) */
+@media (max-width: 380px) {
+  .auth-header { padding: 0 1rem; }
+  .brand-name  { font-size: 0.95rem; }
+  .auth-main   { padding: 5rem 0.75rem 2rem; }
+  .auth-title  { font-size: 1.5rem; }
+  .auth-forms  { padding: 1.25rem; }
+  .auth-card   { border-radius: 1rem; }
+  .btn-primary { padding: 0.75rem 1.25rem; font-size: 0.875rem; }
+}
+
+/* Tablets & up (≥ 768px) — already good, just widen container slightly */
+@media (min-width: 768px) {
+  .auth-container { max-width: 460px; }
+  .auth-title     { font-size: 2.25rem; }
+  .auth-subtitle  { font-size: 1rem; }
+}

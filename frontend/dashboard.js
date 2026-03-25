@@ -1,210 +1,259 @@
-// Check authentication on page load
-window.addEventListener('DOMContentLoaded', async () => {
-  const token = localStorage.getItem('token');
-  
+/* ============================================================
+   dashboard.js — ClassifierBT.com
+   ============================================================ */
+
+window.addEventListener("DOMContentLoaded", async () => {
+  const token = localStorage.getItem("token");
   if (!token) {
-    // Not logged in, redirect to login page
-    window.location.href = '/index.html';
+    window.location.href = "/index.html";
     return;
   }
-
-  // Verify token and get user info
   await loadUserInfo();
-  await loadHistory();
   await loadStatistics();
+  await loadHistory();
+  initUpload();
+  document.getElementById("logoutBtn")?.addEventListener("click", logout);
 });
 
-// Load current user information
+// ── User ─────────────────────────────────────────────────────
 async function loadUserInfo() {
-  const token = localStorage.getItem('token');
-
   try {
-    const response = await fetch('/api/auth/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+    const res = await fetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
+    if (!res.ok) throw new Error();
+    const user = await res.json();
+    const display = user.username || user.email;
 
-    if (!response.ok) {
-      throw new Error('Invalid token');
-    }
+    // Capitalize first letter
+    const formattedName = display
+      ? display.charAt(0).toUpperCase() + display.slice(1)
+      : "";
 
-    const user = await response.json();
-    document.getElementById('user-email').textContent = user.email;
-
-  } catch (error) {
-    console.error('Auth error:', error);
+    setText("userEmail", display);
+    setText("welcomeName", display);
+  } catch {
     logout();
   }
 }
 
-// Logout function
-function logout() {
-  localStorage.removeItem('token');
-  window.location.href = '/index.html';
+// ── Statistics ───────────────────────────────────────────────
+async function loadStatistics() {
+  try {
+    const res = await fetch("/api/statistics", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    if (!res.ok) throw new Error();
+    const s = await res.json();
+    setText("total-count", s.total_predictions ?? "—");
+    setText("tumor-count", s.tumor_detected ?? "—");
+    setText("no-tumor-count", s.no_tumor_detected ?? "—");
+    setText(
+      "avg-confidence",
+      s.average_confidence
+        ? (s.average_confidence * 100).toFixed(1) + "%"
+        : "—",
+    );
+  } catch {
+    ["total-count", "tumor-count", "no-tumor-count", "avg-confidence"].forEach(
+      (id) => setText(id, "—"),
+    );
+  }
 }
 
-
-const imageInput = document.getElementById('imageInput');
-const uploadBtn = document.getElementById('uploadBtn');
-const resultDiv = document.getElementById('result');
-const previewDiv = document.getElementById('preview');
-
-uploadBtn.addEventListener('click', async (e) => {
-     e.preventDefault(); 
-     if (!imageInput.files.length) {
-          alert('Please select an image first.');
-     return;
-     }
-
-     const file = imageInput.files[0];
-     const token = localStorage.getItem('token');
-
-     // Show preview
-     previewDiv.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Preview" />`;
-     resultDiv.innerHTML = '<p class="loading">Analyzing image...</p>';
-
-     const formData = new FormData();
-     formData.append('file', file);
-
-     try {
-          const response = await fetch('/api/predict', {
-               method: 'POST',
-               headers: {
-                    'Authorization': `Bearer ${token}`  // ← Send token with request
-               },
-               body: formData,
-          });
-
-     
-     if (response.status === 401) {
-          // Token expired or invalid
-          alert('Session expired. Please login again.');
-          logout();
-          return;
-     }
-          
-
-          if (!response.ok) {
-               throw new Error(`Server error: ${response.status}`);
-          }
-
-          const data = await response.json();
-          
-          // Display result
-          const confidencePercent = (data.confidence * 100).toFixed(2);
-          const resultClass = data.label === 'Tumor' ? 'tumor-detected' : 'no-tumor';
-          
-          resultDiv.innerHTML = `
-               <div class="result-box ${resultClass}">
-               <h3>Prediction Result</h3>
-               <p class="label">${data.label}</p>
-               <p class="confidence">Confidence: ${confidencePercent}%</p>
-               </div>
-          `;
-
-          // Refresh history after new prediction
-          setTimeout(loadHistory, 1000);
-
-          } catch (error) {
-          resultDiv.innerHTML = `<p class="error">❌ ${error.message}</p>`;
-          }
-});
-
-     // Load prediction history
+// ── History ──────────────────────────────────────────────────
 async function loadHistory() {
-  const token = localStorage.getItem('token');
-  const historyDiv = document.getElementById('history-list');
+  const container = document.getElementById("history-list");
+  if (!container) return;
+  container.innerHTML =
+    '<p class="text-xs text-slate-400 italic text-center py-10">Loading…</p>';
 
   try {
-    const response = await fetch('/api/predictions?limit=10', {
-     headers: {
-        'Authorization': `Bearer ${token}`
-      }
+    const res = await fetch("/api/predictions?limit=30", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
+    if (!res.ok) throw new Error();
+    const { predictions } = await res.json();
 
-    if (!response.ok) {
-      throw new Error('Failed to load history');
-    }
-
-    const data = await response.json();
-    const predictions = data.predictions;
-
-    if (predictions.length === 0) {
-      historyDiv.innerHTML = '<p class="empty">No predictions yet. Upload an image to get started!</p>';
+    if (!predictions.length) {
+      container.innerHTML =
+        '<p class="text-xs text-slate-400 italic text-center py-10">No predictions yet.</p>';
       return;
     }
 
-    // Build history list
-    let historyHTML = '<div class="history-items">';
-    
-    predictions.forEach(pred => {
-      const date = new Date(pred.created_at).toLocaleString();
-      const confidencePercent = (pred.confidence_score * 100).toFixed(2);
-      const labelClass = pred.prediction_label === 'Tumor' ? 'tumor' : 'no-tumor';
-      
-      historyHTML += `
-        <div class="history-item">
-          <div class="history-info">
-            <span class="history-label ${labelClass}">${pred.prediction_label}</span>
-            <span class="history-confidence">${confidencePercent}%</span>
-          </div>
-          <div class="history-meta">
-            <span class="history-date">${date}</span>
-            <span class="history-file">${pred.filename}</span>
-          </div>
-        </div>
-      `;
-    });
-    
-    historyHTML += '</div>';
-    historyDiv.innerHTML = historyHTML;
+    container.innerHTML = predictions
+      .map((pred) => {
+        const d = new Date(pred.created_at);
+        const date = d.toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        const conf = (pred.confidence_score * 100).toFixed(1) + "%";
+        const label = pred.prediction_label;
+        const isPos = label === "Tumor";
+        const isUnc = label === "Uncertain" || label === "Invalid Input";
 
-  } catch (error) {
-    historyDiv.innerHTML = `<p class="error">Failed to load history</p>`;
+        const chipCls = isUnc
+          ? "chip chip-unc"
+          : isPos
+            ? "chip chip-pos"
+            : "chip chip-neg";
+        const chipTxt = isUnc ? "Uncertain" : isPos ? "Tumor" : "Negative";
+        const initCls = isUnc
+          ? "h-init h-init--unc"
+          : isPos
+            ? "h-init h-init--pos"
+            : "h-init h-init--neg";
+
+        const base = pred.filename.replace(/\.[^.]+$/, "");
+        const words = base.split(/[_\-\s]+/).filter(Boolean);
+        const init =
+          words.length >= 2
+            ? (words[0][0] + words[1][0]).toUpperCase()
+            : base.substring(0, 2).toUpperCase();
+
+        return `
+        <div class="h-row">
+          <div class="${initCls}">${init}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:4px;">
+              <span class="h-name">${escapeHtml(pred.filename)}</span>
+              <span class="h-date">${date}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+              <span class="${chipCls}">${chipTxt}</span>
+              <span class="h-conf">${conf}</span>
+            </div>
+          </div>
+        </div>`;
+      })
+      .join("");
+  } catch {
+    container.innerHTML =
+      '<p class="text-xs text-red-400 italic text-center py-10">Failed to load.</p>';
   }
 }
 
-// Load statistics
-async function loadStatistics() {
-  const token = localStorage.getItem('token');
-  const statsDiv = document.getElementById('statistics');
+// ── Upload / Predict ─────────────────────────────────────────
+function initUpload() {
+  const dropZone = document.getElementById("dropZone");
+  const dropInner = document.getElementById("dropInner");
+  const imageInput = document.getElementById("imageInput");
+  const previewSec = document.getElementById("previewSection");
+  const imagePreview = document.getElementById("imagePreview");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const reUploadBtn = document.getElementById("reUploadBtn");
+  const resultDisplay = document.getElementById("resultDisplay");
+  const placeholder = document.getElementById("placeholderText");
+  const predLabel = document.getElementById("predictionLabel");
+  const predScore = document.getElementById("predictionScore");
+  const confBar = document.getElementById("confidenceBar");
 
-  try {
-    const response = await fetch('/api/statistics', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+  if (!imageInput) return;
 
-    if (!response.ok) {
-      throw new Error('Failed to load statistics');
-    }
+  // Drag & drop
+  dropInner?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropInner.classList.add("drag-over");
+  });
+  dropInner?.addEventListener("dragleave", () => {
+    dropInner.classList.remove("drag-over");
+  });
+  dropInner?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropInner.classList.remove("drag-over");
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
 
-    const stats = await response.json();
+  imageInput.addEventListener("change", () => {
+    if (imageInput.files[0]) handleFile(imageInput.files[0]);
+  });
 
-    statsDiv.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-item">
-          <h3>${stats.total_predictions}</h3>
-          <p>Total Predictions</p>
-        </div>
-        <div class="stat-item tumor">
-          <h3>${stats.tumor_detected}</h3>
-          <p>Tumors Detected</p>
-        </div>
-        <div class="stat-item no-tumor">
-          <h3>${stats.no_tumor_detected}</h3>
-          <p>No Tumor</p>
-        </div>
-        <div class="stat-item">
-          <h3>${(stats.average_confidence * 100).toFixed(1)}%</h3>
-          <p>Avg Confidence</p>
-        </div>
-      </div>
-    `;
-
-  } catch (error) {
-    statsDiv.innerHTML = `<p class="error">Failed to load statistics</p>`;
+  function handleFile(file) {
+    imagePreview.src = URL.createObjectURL(file);
+    previewSec.classList.remove("hidden");
+    dropZone.classList.add("hidden");
+    resultDisplay.classList.add("hidden");
+    if (placeholder) placeholder.style.display = "block";
   }
+
+  // Reset to drop zone
+  reUploadBtn?.addEventListener("click", () => {
+    previewSec.classList.add("hidden");
+    dropZone.classList.remove("hidden");
+    resultDisplay.classList.add("hidden");
+    imageInput.value = "";
+    imagePreview.src = "";
+    if (placeholder) placeholder.style.display = "block";
+  });
+
+  // Predict
+  uploadBtn?.addEventListener("click", async () => {
+    const file = imageInput.files[0];
+    if (!file) {
+      alert("Please select a file first.");
+      return;
+    }
+    const token = localStorage.getItem("token");
+
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:1.125rem;">hourglass_top</span> Classifying…`;
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+      const data = await res.json();
+      const isPos = data.label === "Tumor";
+      const pct = (data.confidence * 100).toFixed(1);
+
+      predLabel.textContent = data.label;
+      predLabel.style.color = isPos ? "#ac0031" : "#006a61";
+      predScore.textContent = pct + "%";
+      predScore.style.color = "#0b1c30";
+      confBar.style.width = pct + "%";
+      confBar.style.background = isPos ? "#ac0031" : "#006a61";
+
+      resultDisplay.classList.remove("hidden");
+      if (placeholder) placeholder.style.display = "none";
+
+      setTimeout(() => {
+        loadHistory();
+        loadStatistics();
+      }, 800);
+    } catch (err) {
+      alert("Prediction failed: " + err.message);
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:1.125rem;">analytics</span> Predict Classification`;
+    }
+  });
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "/index.html";
+}
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
 }

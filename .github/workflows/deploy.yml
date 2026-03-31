@@ -1,0 +1,88 @@
+# ============================================================
+# ClassifierBT CI/CD Pipeline
+# ============================================================
+# This workflow runs on every push to main:
+#   1. Builds both Docker images (catches syntax/dependency errors)
+#   2. Runs tests (placeholder — ready for pytest)
+#   3. Deploys to EC2 via SSH
+#
+# Required GitHub Secrets:
+#   EC2_HOST         — EC2 public IP or classifierbt.com
+#   EC2_USER         — SSH username (e.g., ubuntu)
+#   EC2_SSH_KEY      — Contents of your .pem private key
+#   EC2_PROJECT_PATH — Path on EC2 (e.g., /home/ubuntu/classifierbt)
+# ============================================================
+
+name: Deploy ClassifierBT
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ── Step 1: Build & Test ──────────────────────────────────
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: docker build -t classifierbt-backend ./backend
+
+      - name: Build frontend Docker image
+        run: docker build -t classifierbt-frontend ./frontend
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v
+
+  # ── Step 2: Deploy to EC2 ─────────────────────────────────
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ${{ secrets.EC2_PROJECT_PATH }}
+
+            # Pull latest code
+            git pull origin main
+
+            # Rebuild and restart containers
+            docker compose down
+            docker compose up -d --build
+
+            # Wait for backend to be healthy
+            echo "Waiting for backend health check..."
+            for i in {1..30}; do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "Backend is healthy!"
+                exit 0
+              fi
+              echo "Attempt $i/30 - waiting..."
+              sleep 5
+            done
+
+            echo "ERROR: Backend failed health check after 150 seconds"
+            exit 1

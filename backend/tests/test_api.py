@@ -15,6 +15,12 @@
 from unittest.mock import MagicMock
 import sys
 
+# Mock the ML model loader so it doesn't need the .keras file
+sys.modules["app.services.predictor"] = MagicMock()
+sys.modules["app.services.model_loader"] = MagicMock()
+sys.modules["app.services.preprocessing"] = MagicMock()
+
+
 # Mock the ML modules so TensorFlow doesn't need to load during tests
 sys.modules["tensorflow"] = MagicMock()
 sys.modules["tensorflow.keras"] = MagicMock()

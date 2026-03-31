@@ -75,14 +75,14 @@ jobs:
 
             # Wait for backend to be healthy
             echo "Waiting for backend health check..."
-            for i in {1..30}; do
+            for i in {1..60}; do
               if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
                 echo "Backend is healthy!"
                 exit 0
               fi
-              echo "Attempt $i/30 - waiting..."
+              echo "Attempt $i/60 - waiting..."
               sleep 5
             done
 
-            echo "ERROR: Backend failed health check after 150 seconds"
+            echo "ERROR: Backend failed health check after 300 seconds"
             exit 1

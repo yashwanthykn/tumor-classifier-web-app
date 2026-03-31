@@ -69,11 +69,15 @@ jobs:
             # Pull latest code
             git pull origin main
 
-            # Rebuild and restart containers
-            docker compose down
-            docker compose up -d --build
+            # Build images first (this takes the longest)
+            echo "Building Docker images..."
+            docker compose build
 
-            # Wait for backend to be healthy
+            # Restart containers with pre-built images
+            docker compose down
+            docker compose up -d
+
+            # Now wait for backend to be healthy
             echo "Waiting for backend health check..."
             for i in {1..60}; do
               if curl -sf http://localhost:8000/health > /dev/null 2>&1; then

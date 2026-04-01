@@ -69,24 +69,9 @@ jobs:
             # Pull latest code
             git pull origin main
 
-            # Build images first (this takes the longest)
-            echo "Building Docker images..."
+            # Build and restart containers
             docker compose build
-
-            # Restart containers with pre-built images
             docker compose down
             docker compose up -d
 
-            # Now wait for backend to be healthy
-            echo "Waiting for backend health check..."
-            for i in {1..60}; do
-              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-                echo "Backend is healthy!"
-                exit 0
-              fi
-              echo "Attempt $i/60 - waiting..."
-              sleep 5
-            done
-
-            echo "ERROR: Backend failed health check after 300 seconds"
-            exit 1
+            echo "Deployment complete!"

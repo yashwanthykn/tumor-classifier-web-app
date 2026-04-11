@@ -1,12 +1,15 @@
 import os
+import re
 import json
 import logging
 from typing import AsyncIterator, Dict, List, Any, Optional
-from sqlalchemy.orm import Session
 
-from groq import Groq  # ← Changed from anthropic
+from sqlalchemy.orm import Session
+from groq import Groq
 
 from app.crud import prediction as crud_prediction
+from app.crud import conversation as crud_conversation
+from app.database.models import Message, MessageRole
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -20,22 +23,66 @@ class ChatAgent:
         db: Session,
         api_key: Optional[str] = None,
     ):
-        """Initialize the chat agent with Groq"""
+        """Initialize the chat agent with Groq and load history from DB."""
         self.user_id = user_id
         self.conversation_id = conversation_id
         self.db = db
 
-        # ✅ Initialize Groq client (FREE!)
+        # Initialize Groq client
         self.client = Groq(api_key=api_key or os.getenv("GROQ_API_KEY"))
 
-        self.conversation_history: List[Dict[str, str]] = []
-        self.max_tokens = 1024
-        # ✅ Use Llama 3.1 70B (best free model)
+        self.conversation_history: List[Dict[str, Any]] = []
+        self.max_tokens = 2048
         self.model = "llama-3.3-70b-versatile"
 
+        # Load existing conversation history from DB
+        self._load_history_from_db()
+
         logger.info(
-            f"ChatAgent initialized for user={self.user_id}, conversation={conversation_id}"
+            f"ChatAgent initialized for user={self.user_id}, "
+            f"conversation={conversation_id}, "
+            f"loaded {len(self.conversation_history)} history messages"
         )
+
+    def _load_history_from_db(self) -> None:
+        """Load previous messages from the database into conversation_history."""
+        messages = crud_conversation.get_conversation_messages(
+            self.db,
+            conversation_id=self.conversation_id,
+            user_id=self.user_id,
+        )
+
+        for msg in messages:
+            if msg.role == MessageRole.tool:
+                entry = {
+                    "role": "tool",
+                    "tool_call_id": msg.tool_name or "",
+                    "content": msg.content,
+                }
+            elif msg.role == MessageRole.assistant and msg.tool_name:
+                tool_calls = []
+                if msg.tool_input:
+                    try:
+                        tool_calls = json.loads(msg.tool_input)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                entry = {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": tool_calls,
+                }
+            else:
+                entry = {
+                    "role": (
+                        msg.role.value
+                        if isinstance(msg.role, MessageRole)
+                        else msg.role
+                    ),
+                    "content": msg.content,
+                }
+
+            self.conversation_history.append(entry)
 
     def get_system_prompt(self) -> str:
         return """You are an AI medical assistant for a brain tumor classification application.
@@ -51,11 +98,11 @@ You help users understand their MRI scan results and provide educational informa
 - Answer questions about symptoms, diagnosis, and general medical information
 
 **CRITICAL SAFETY RULES:**
-1. ⚠️ You are NOT a replacement for medical professionals
-2. ⚠️ Always recommend consulting a doctor for medical advice
-3. ⚠️ Never make definitive diagnoses or treatment recommendations
-4. ⚠️ Be empathetic but factual - balance compassion with accuracy
-5. ⚠️ If symptoms seem urgent, strongly recommend immediate medical attention
+1. You are NOT a replacement for medical professionals
+2. Always recommend consulting a doctor for medical advice
+3. Never make definitive diagnoses or treatment recommendations
+4. Be empathetic but factual - balance compassion with accuracy
+5. If symptoms seem urgent, strongly recommend immediate medical attention
 
 **WHEN TO USE TOOLS:**
 - User asks about "my scans" or "my history" → use get_user_predictions
@@ -110,6 +157,33 @@ Remember: Education and support, not diagnosis or treatment advice."""
             },
         ]
 
+    def _parse_inline_tool_call(self, text: str) -> Optional[Dict[str, Any]]:
+        """Parse tool calls embedded in text content by Llama.
+
+        Llama 3.3 sometimes outputs tool calls as raw text instead of using
+        the structured tool_calls field. Format:
+            <function=tool_name>{"arg": "value"}</function>
+        """
+        pattern = r"<function=(\w+)>(.*?)</function>"
+        match = re.search(pattern, text, re.DOTALL)
+        if not match:
+            return None
+
+        tool_name = match.group(1)
+        try:
+            tool_args = json.loads(match.group(2))
+        except (json.JSONDecodeError, TypeError):
+            tool_args = {}
+
+        preamble = text[: match.start()].strip()
+
+        logger.info(f"Parsed inline tool call: {tool_name}({tool_args})")
+        return {
+            "name": tool_name,
+            "arguments": tool_args,
+            "preamble": preamble,
+        }
+
     async def execute_tool(
         self, tool_name: str, tool_input: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -153,9 +227,31 @@ Remember: Education and support, not diagnosis or treatment advice."""
             logger.exception(f"Tool execution failed: {tool_name}")
             return {"success": False, "error": f"Tool execution failed: {str(e)}"}
 
+    def _call_groq(self, use_tools: bool = True):
+        """Make a single Groq API call. Returns the message object."""
+        kwargs = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": self.get_system_prompt()},
+                *self.conversation_history[-20:],  # Limit history to save tokens
+            ],
+            "max_tokens": self.max_tokens,
+            "temperature": 0.7,
+        }
+        if use_tools:
+            kwargs["tools"] = self.get_tools()
+
+        response = self.client.chat.completions.create(**kwargs)
+        return response.choices[0].message
+
     async def send_message(self, user_message: str) -> AsyncIterator[str]:
-        """Send message and get streaming response"""
-        # Add user message to history
+        """Send message and get response.
+
+        Handles the full agentic loop: LLM call → tool execution → LLM call with results.
+        Only yields the FINAL text response — never intermediate preambles.
+        Tool-call messages are persisted to DB inside the loop.
+        """
+        # Add user message to in-memory history
         self.conversation_history.append({"role": "user", "content": user_message})
 
         max_iterations = 5
@@ -166,54 +262,51 @@ Remember: Education and support, not diagnosis or treatment advice."""
             logger.info(f"Agent iteration {iteration}")
 
             try:
-                # ✅ Groq API call (OpenAI-compatible)
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": self.get_system_prompt()},
-                        *self.conversation_history,
-                    ],
-                    tools=self.get_tools(),
-                    max_tokens=self.max_tokens,
-                    temperature=0.7,
-                )
+                message = self._call_groq(use_tools=True)
 
-                message = response.choices[0].message
-
-                # Check if AI wants to use tools
+                # ── Path A: Structured tool calls (proper Groq format) ───
                 if message.tool_calls:
-                    logger.info("AI requested tool use")
+                    logger.info("AI requested tool use (structured)")
 
-                    # Add assistant's tool request to history
+                    tool_calls_list = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in message.tool_calls
+                    ]
+
+                    # Add to history
                     self.conversation_history.append(
                         {
                             "role": "assistant",
                             "content": message.content or "",
-                            "tool_calls": [
-                                {
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.function.name,
-                                        "arguments": tc.function.arguments,
-                                    },
-                                }
-                                for tc in message.tool_calls
-                            ],
+                            "tool_calls": tool_calls_list,
                         }
+                    )
+
+                    # Persist tool request to DB
+                    crud_conversation.save_message(
+                        self.db,
+                        conversation_id=self.conversation_id,
+                        role=MessageRole.assistant,
+                        content=message.content or "",
+                        tool_name="__tool_request__",
+                        tool_input=tool_calls_list,
                     )
 
                     # Execute each tool
                     for tool_call in message.tool_calls:
                         tool_name = tool_call.function.name
                         tool_input = json.loads(tool_call.function.arguments)
-
                         logger.info(f"Tool call: {tool_name}({tool_input})")
 
-                        # Execute tool
                         tool_result = await self.execute_tool(tool_name, tool_input)
 
-                        # Add tool result to history
                         self.conversation_history.append(
                             {
                                 "role": "tool",
@@ -222,32 +315,156 @@ Remember: Education and support, not diagnosis or treatment advice."""
                             }
                         )
 
-                    # Continue loop to get AI's response with tool results
+                        crud_conversation.save_message(
+                            self.db,
+                            conversation_id=self.conversation_id,
+                            role=MessageRole.tool,
+                            content=json.dumps(tool_result),
+                            tool_name=tool_call.id,
+                            tool_input=tool_input,
+                            tool_result=tool_result,
+                        )
+
+                    # Loop back for LLM to generate response using tool results
                     continue
-                # this else block executes when AI has finished processing and is ready to send a final response @@@@ text
-                else:
-                    # AI has final text response
-                    logger.info("AI finished - sending response")
 
-                    text_response = message.content or ""
+                # ── Path B: Text response (might contain inline tool call) ─
+                text_response = message.content or ""
 
-                    # Add to history
-                    self.conversation_history.append(
-                        {"role": "assistant", "content": text_response}
+                # Check for inline tool call in text
+                inline_call = self._parse_inline_tool_call(text_response)
+                if inline_call:
+                    logger.info(f"Detected inline tool call: {inline_call['name']}")
+
+                    tool_result = await self.execute_tool(
+                        inline_call["name"], inline_call["arguments"]
                     )
 
-                    # Yield response
-                    yield text_response
-                    break
+                    synthetic_id = f"inline_{inline_call['name']}_{iteration}"
+
+                    # Add to history (preamble + tool call + result)
+                    self.conversation_history.append(
+                        {
+                            "role": "assistant",
+                            "content": inline_call.get("preamble", ""),
+                            "tool_calls": [
+                                {
+                                    "id": synthetic_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": inline_call["name"],
+                                        "arguments": json.dumps(
+                                            inline_call["arguments"]
+                                        ),
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                    self.conversation_history.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": synthetic_id,
+                            "content": json.dumps(tool_result),
+                        }
+                    )
+
+                    # Persist to DB
+                    crud_conversation.save_message(
+                        self.db,
+                        conversation_id=self.conversation_id,
+                        role=MessageRole.assistant,
+                        content=inline_call.get("preamble", ""),
+                        tool_name="__tool_request__",
+                        tool_input=[
+                            {
+                                "id": synthetic_id,
+                                "type": "function",
+                                "function": {
+                                    "name": inline_call["name"],
+                                    "arguments": json.dumps(inline_call["arguments"]),
+                                },
+                            }
+                        ],
+                    )
+                    crud_conversation.save_message(
+                        self.db,
+                        conversation_id=self.conversation_id,
+                        role=MessageRole.tool,
+                        content=json.dumps(tool_result),
+                        tool_name=synthetic_id,
+                        tool_input=inline_call["arguments"],
+                        tool_result=tool_result,
+                    )
+
+                    # Loop back — do NOT yield the preamble
+                    continue
+
+                # ── Path C: Final text response (no tool calls) ──────────
+                logger.info("AI finished - sending final response")
+
+                self.conversation_history.append(
+                    {"role": "assistant", "content": text_response}
+                )
+
+                yield text_response
+                break
 
             except Exception as e:
+                error_str = str(e)
                 logger.exception("Error in agent loop")
-                yield f"I apologize, but I encountered an error: {str(e)}"
+
+                # ── Rate limit error ─────────────────────────────────
+                if "rate_limit" in error_str.lower() or "429" in error_str:
+                    # Extract wait time if available
+                    import re as _re
+
+                    wait_match = _re.search(
+                        r"try again in (\d+m[\d.]+s|\d+s)", error_str, _re.IGNORECASE
+                    )
+                    wait_time = wait_match.group(1) if wait_match else "a few minutes"
+                    yield f"__ERROR_RATE_LIMIT__{wait_time}"
+                    break
+
+                # ── Tool call failed ─────────────────────────────────
+                if "tool_use_failed" in error_str or "400" in error_str:
+                    logger.warning("Tool call failed, retrying without tools")
+                    try:
+                        message = self._call_groq(use_tools=False)
+                        text_response = message.content or ""
+                        self.conversation_history.append(
+                            {"role": "assistant", "content": text_response}
+                        )
+                        yield text_response
+                    except Exception as retry_err:
+                        retry_str = str(retry_err)
+                        if "rate_limit" in retry_str.lower() or "429" in retry_str:
+                            wait_match = _re.search(
+                                r"try again in (\d+m[\d.]+s|\d+s)",
+                                retry_str,
+                                _re.IGNORECASE,
+                            )
+                            wait_time = (
+                                wait_match.group(1) if wait_match else "a few minutes"
+                            )
+                            yield f"__ERROR_RATE_LIMIT__{wait_time}"
+                        else:
+                            logger.exception("Retry without tools also failed")
+                            yield "__ERROR_SERVER__"
+                    break
+
+                # ── Connection / timeout errors ──────────────────────
+                if "timeout" in error_str.lower() or "connect" in error_str.lower():
+                    yield "__ERROR_TIMEOUT__"
+                    break
+
+                # ── Generic error ────────────────────────────────────
+                yield "__ERROR_SERVER__"
                 break
 
         if iteration >= max_iterations:
             logger.error("Agent hit max iterations")
-            yield "I apologize, but I'm having trouble processing your request. Please try a simpler question."
+            yield "__ERROR_MAX_ITERATIONS__"
 
     def clear_history(self):
         """Clear conversation history"""

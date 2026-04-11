@@ -27,6 +27,9 @@ services:
         condition: service_healthy
         #depends on the healthcheck
         #only effect start up order it does'nt restarts if dependency becomes unhealthy later on but we need to backend error handling to manage it.
+    env_file:
+      - .env
+
     environment:
       - DATABASE_URL=postgresql://tumor_user:tumor_pass@tumor_db_test:5432/tumor_classifier_db
       - SECRET_KEY=${SECRET_KEY}

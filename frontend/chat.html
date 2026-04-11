@@ -14,6 +14,10 @@
   <!-- ══════════ HEADER ══════════════════════════════════════ -->
   <header class="chat-header">
     <div class="chat-brand">
+      <!-- Sidebar toggle (mobile + desktop) -->
+      <button id="sidebarToggle" class="chat-header__btn" title="Toggle sidebar">
+        <span class="material-symbols-outlined">menu</span>
+      </button>
       <div class="chat-brand__icon">
         <span class="material-symbols-outlined">clinical_notes</span>
       </div>
@@ -42,83 +46,113 @@
     </div>
   </header>
 
-  <!-- ══════════ MESSAGES CANVAS ═════════════════════════════ -->
-  <main class="chat-canvas" id="chatCanvas">
-    <div class="chat-messages" id="chatMessages">
+  <!-- ══════════ LAYOUT: SIDEBAR + MAIN ════════════════════ -->
+  <div class="chat-layout">
 
-      <!-- Empty state -->
-      <div id="emptyState" class="empty-state">
-        <div class="empty-state__icon-wrap">
-          <span class="material-symbols-outlined empty-state__icon">neurology</span>
-        </div>
-        <h2 class="empty-state__title">How can I help you today?</h2>
-        <p class="empty-state__sub">
-          Access clinical data, analyze scan results, or ask general neuro-oncology questions.
-        </p>
-        <div class="suggestion-grid">
-          <button class="suggestion-card" onclick="sendSuggestedQuestion('What are the different types of brain tumors?')">
-            <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--primary">biotech</span>
-            <div>
-              <p class="suggestion-card__title">Brain Tumor Types</p>
-              <p class="suggestion-card__desc">Learn about classifications</p>
-            </div>
-          </button>
-          <button class="suggestion-card" onclick="sendSuggestedQuestion('How many scans have I done?')">
-            <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--secondary">summarize</span>
-            <div>
-              <p class="suggestion-card__title">My Scan History</p>
-              <p class="suggestion-card__desc">View past predictions</p>
-            </div>
-          </button>
-          <button class="suggestion-card" onclick="sendSuggestedQuestion('Explain my last scan result')">
-            <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--tertiary">priority_high</span>
-            <div>
-              <p class="suggestion-card__title">Latest Results</p>
-              <p class="suggestion-card__desc">Interpret your recent scan</p>
-            </div>
-          </button>
-          <button class="suggestion-card" onclick="sendSuggestedQuestion('What should I know about glioblastoma?')">
-            <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--primary">history</span>
-            <div>
-              <p class="suggestion-card__title">Glioblastoma Info</p>
-              <p class="suggestion-card__desc">Medical information & context</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Typing indicator -->
-    <div id="typingIndicator" class="typing-wrap">
-      <div class="typing-inner">
-        <div class="typing-avatar">
-          <span class="material-symbols-outlined">smart_toy</span>
-        </div>
-        <div class="typing-dots">
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- ══════════ INPUT AREA ═══════════════════════════════════ -->
-  <div class="input-shell">
-    <div class="input-shell__inner">
-      <div class="input-wrap" id="inputWrap">
-        <textarea id="chatInput" rows="1" class="chat-textarea"
-                  placeholder="Ask a clinical question or request data analysis…"></textarea>
-        <button id="sendBtn" class="send-btn">
-          <span class="material-symbols-outlined">send</span>
+    <!-- ── Sidebar: Conversation History ── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__header">
+        <h2 class="sidebar__title">Conversations</h2>
+        <button id="sidebarNewChat" class="sidebar__new-btn" title="New conversation">
+          <span class="material-symbols-outlined">edit_square</span>
         </button>
       </div>
-      <p class="input-shell__disclaimer">
-        AI-generated results are for demonstration only and require professional verification before any clinical use.
-      </p>
-    </div>
-  </div>
+
+      <div class="sidebar__list" id="conversationList">
+        <!-- Populated by chat.js -->
+        <div class="sidebar__empty" id="sidebarEmpty">
+          <span class="material-symbols-outlined sidebar__empty-icon">forum</span>
+          <p>No conversations yet</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── Sidebar overlay for mobile ── -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ── Main Chat Area ── -->
+    <div class="chat-main">
+
+      <!-- ══════════ MESSAGES CANVAS ═════════════════════════════ -->
+      <main class="chat-canvas" id="chatCanvas">
+        <div class="chat-messages" id="chatMessages">
+
+          <!-- Empty state -->
+          <div id="emptyState" class="empty-state">
+            <div class="empty-state__icon-wrap">
+              <span class="material-symbols-outlined empty-state__icon">neurology</span>
+            </div>
+            <h2 class="empty-state__title">How can I help you today?</h2>
+            <p class="empty-state__sub">
+              Access clinical data, analyze scan results, or ask general neuro-oncology questions.
+            </p>
+            <div class="suggestion-grid">
+              <button class="suggestion-card" onclick="sendSuggestedQuestion('What are the different types of brain tumors?')">
+                <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--primary">biotech</span>
+                <div>
+                  <p class="suggestion-card__title">Brain Tumor Types</p>
+                  <p class="suggestion-card__desc">Learn about classifications</p>
+                </div>
+              </button>
+              <button class="suggestion-card" onclick="sendSuggestedQuestion('How many scans have I done?')">
+                <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--secondary">summarize</span>
+                <div>
+                  <p class="suggestion-card__title">My Scan History</p>
+                  <p class="suggestion-card__desc">View past predictions</p>
+                </div>
+              </button>
+              <button class="suggestion-card" onclick="sendSuggestedQuestion('Explain my last scan result')">
+                <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--tertiary">priority_high</span>
+                <div>
+                  <p class="suggestion-card__title">Latest Results</p>
+                  <p class="suggestion-card__desc">Interpret your recent scan</p>
+                </div>
+              </button>
+              <button class="suggestion-card" onclick="sendSuggestedQuestion('What should I know about glioblastoma?')">
+                <span class="material-symbols-outlined suggestion-card__icon suggestion-card__icon--primary">history</span>
+                <div>
+                  <p class="suggestion-card__title">Glioblastoma Info</p>
+                  <p class="suggestion-card__desc">Medical information & context</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Typing indicator -->
+        <div id="typingIndicator" class="typing-wrap">
+          <div class="typing-inner">
+            <div class="typing-avatar">
+              <span class="material-symbols-outlined">smart_toy</span>
+            </div>
+            <div class="typing-dots">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- ══════════ INPUT AREA ═══════════════════════════════════ -->
+      <div class="input-shell">
+        <div class="input-shell__inner">
+          <div class="input-wrap" id="inputWrap">
+            <textarea id="chatInput" rows="1" class="chat-textarea"
+                      placeholder="Ask a clinical question or request data analysis…"></textarea>
+            <button id="sendBtn" class="send-btn">
+              <span class="material-symbols-outlined">send</span>
+            </button>
+          </div>
+          <p class="input-shell__disclaimer">
+            AI-generated results are for demonstration only and require professional verification before any clinical use.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /chat-main -->
+  </div><!-- /chat-layout -->
 
   <!-- ══════════ MOBILE BOTTOM NAV ═════════════════════════════ -->
   <nav class="mobile-nav">

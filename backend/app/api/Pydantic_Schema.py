@@ -1,6 +1,8 @@
+import json
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Any
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class PredictionResponse(BaseModel):
@@ -82,8 +84,65 @@ class ChatMessageResponse(BaseModel):
     status: str
 
 
-# respnose message for conversation history
-class ConversationHistory(BaseModel):
+# ── Chat Persistence Schemas ─────────────────────────────────────────
+
+
+class MessageResponse(BaseModel):
+    """Single message in a conversation."""
+
+    id: str
     conversation_id: str
-    messages: list
-    total_messages: int
+    role: str
+    content: str
+    tool_name: Optional[str] = None
+    tool_input: Optional[Any] = None
+    tool_result: Optional[Any] = None
+    token_count: Optional[int] = None
+    created_at: datetime
+
+    @field_validator("tool_input", "tool_result", mode="before")
+    @classmethod
+    def parse_json_string(cls, v):
+        """DB stores these as JSON strings; deserialize for the API."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return v
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationResponse(BaseModel):
+    """Lightweight conversation for list views (no messages)."""
+
+    id: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetailResponse(BaseModel):
+    """Full conversation with all messages."""
+
+    id: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    messages: List[MessageResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationListResponse(BaseModel):
+    """Paginated list of conversations."""
+
+    conversations: List[ConversationResponse]
+    total: int

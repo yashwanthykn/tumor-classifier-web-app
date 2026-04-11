@@ -7,14 +7,18 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 
 from app.database.database import Base, engine
-from app.utils.logger import logger
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import time
 
-# Create all database tables
+# Import all models so Base.metadata knows about them
+from app.database.models import User, Prediction, Conversation, Message  # noqa: F401
+
+# Create all database tables (handles existing tables — idempotent)
+# New tables (conversations, messages) are managed by Alembic migrations,
+# but create_all() is safe to keep: it skips tables that already exist.
 Base.metadata.create_all(bind=engine)
 
 # App initialization
@@ -54,4 +58,4 @@ app.include_router(predict_router, prefix="/api", tags=["Predictions"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(chat_router, prefix="/api/chat", tags=["chatbot"])
 
-logger.info("APP loaded successfully")
+print("FastAPI app loaded correctly")

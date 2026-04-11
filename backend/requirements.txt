@@ -8,6 +8,7 @@ python-multipart==0.0.9
 # === DATABASE ===
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
+alembic==1.13.1
 
 # === AUTHENTICATION ===
 python-jose==3.3.0

@@ -33,13 +33,13 @@ async def predict_image(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Upload an image and get tumor prediction."""
-    
+
     # Validate uploaded file
     file_bytes = await validate_image_file(file)
-    
+
     # Sanitize filename
     safe_filename = sanitize_filename(file.filename)
     unique_filename = f"{uuid4().hex}_{safe_filename}"
@@ -50,7 +50,7 @@ async def predict_image(
     try:
         # Get file size
         file_size = len(file_bytes)
-        #logger.info(file_size)
+        # logger.info(file_size)
         # Save file temporarily
         with open(file_path, "wb") as buffer:
             buffer.write(file_bytes)
@@ -63,7 +63,8 @@ async def predict_image(
 
         logger.info(
             "Prediction => label=%s confidence=%.4f",
-            result["label"], result["confidence"]
+            result["label"],
+            result["confidence"],
         )
 
         # Save prediction to database
@@ -72,8 +73,8 @@ async def predict_image(
             user_id=current_user.id,
             filename=safe_filename,
             file_size=file_size,
-            prediction_label=result['label'],
-            confidence_score=result['confidence'],
+            prediction_label=result["label"],
+            confidence_score=result["confidence"],
             processing_time=processing_time,
         )
         logger.info(f"Saved prediction to db with id: {db_prediction.id}")
@@ -101,10 +102,10 @@ async def get_predictions(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get prediction history for current user."""
-    
+
     if skip < 0:
         raise HTTPException(status_code=400, detail="Skip must be >= 0")
 
@@ -112,7 +113,7 @@ async def get_predictions(
         raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
 
     predictions = crud_prediction.get_user_predictions(
-        db,  user_id=current_user.id, skip=skip, limit=limit
+        db, user_id=current_user.id, skip=skip, limit=limit
     )
     return {"predictions": predictions, "total": len(predictions)}
 
@@ -121,17 +122,19 @@ async def get_predictions(
 async def get_prediction(
     prediction_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get a specific prediction by ID."""
-    
+
     prediction = crud_prediction.get_prediction_by_id(db, prediction_id)
 
     if not prediction:
-        raise HTTPException(status_code=404, detail='Prediction not found')
+        raise HTTPException(status_code=404, detail="Prediction not found")
 
     if prediction.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this prediction")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view this prediction"
+        )
 
     return prediction
 
@@ -141,9 +144,8 @@ async def get_prediction(
 async def get_statistics(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get prediction statistics for current user."""
     stats = crud_prediction.get_statistics(db, user_id=current_user.id)
     return stats
-

@@ -36,31 +36,53 @@ function scrollToBottom() {
 }
 
 /**
+ * Sanitize a URL for use in href attributes.
+ * Blocks javascript:, data:, and vbscript: URIs to prevent XSS.
+ * Only allows http:, https:, and mailto: schemes.
+ */
+function sanitizeUrl(url) {
+  if (!url) return "#";
+  const trimmed = url.trim().toLowerCase();
+  if (
+    trimmed.startsWith("javascript:") ||
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("vbscript:")
+  ) {
+    return "#";
+  }
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("#")
+  ) {
+    return url;
+  }
+  return "https://" + url;
+}
+
+/**
  * Minimal markdown → HTML renderer.
- * Handles: bold, italic, inline code, code blocks, headings,
- * unordered/ordered lists, blockquotes, horizontal rules, line breaks.
- * No external dependencies.
  */
 function renderMarkdown(text) {
   if (!text) return "";
 
   let html = text;
 
-  // Code blocks (```...```) — must be processed BEFORE inline rules
+  // Code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
   });
 
-  // Split into lines for block-level processing
   const lines = html.split("\n");
   const output = [];
   let inList = false;
-  let listType = null; // "ul" or "ol"
+  let listType = null;
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
 
-    // Skip lines inside code blocks (already processed above)
     if (line.includes("<pre><code>") || line.includes("</code></pre>")) {
       output.push(line);
       continue;
@@ -98,8 +120,8 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Unordered list item
-    const ulMatch = line.match(/^[\s]*[-*+]\s+(.+)$/);
+    // Unordered list
+    const ulMatch = line.match(/^[\s]*[-*]\s+(.+)$/);
     if (ulMatch) {
       if (!inList || listType !== "ul") {
         if (inList) output.push(`</${listType}>`);
@@ -111,7 +133,7 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Ordered list item
+    // Ordered list
     const olMatch = line.match(/^[\s]*\d+\.\s+(.+)$/);
     if (olMatch) {
       if (!inList || listType !== "ol") {
@@ -124,46 +146,38 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // Close any open list if this line isn't a list item
-    if (inList) {
+    if (inList && line.trim() !== "") {
       output.push(`</${listType}>`);
       inList = false;
     }
 
-    // Empty line → paragraph break
     if (line.trim() === "") {
       output.push("");
       continue;
     }
 
-    // Regular paragraph
     output.push(`<p>${applyInline(line)}</p>`);
   }
 
   if (inList) output.push(`</${listType}>`);
-
   return output.join("\n");
 }
 
 /** Apply inline markdown: bold, italic, inline code, links */
 function applyInline(text) {
-  // Inline code (must be first to prevent bold/italic inside code)
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
-  // Bold + italic
   text = text.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-  // Bold
   text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  // Italic
   text = text.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  // Links
   text = text.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>',
+    (_, linkText, url) =>
+      `<a href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer">${linkText}</a>`,
   );
   return text;
 }
 
-// ── Global: called from suggestion buttons in HTML ────────
+// ── Global: called from suggestion buttons ────────────────
 
 function sendSuggestedQuestion(question) {
   const input = document.getElementById("chatInput");
@@ -217,13 +231,11 @@ function initChat() {
     }
   });
 
-  // Auto-grow textarea
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = input.scrollHeight + "px";
   });
 
-  // New chat buttons (header + sidebar)
   document
     .getElementById("newChatBtn")
     ?.addEventListener("click", startNewConversation);
@@ -231,7 +243,6 @@ function initChat() {
     .getElementById("sidebarNewChat")
     ?.addEventListener("click", startNewConversation);
 
-  // Sidebar toggle
   document
     .getElementById("sidebarToggle")
     ?.addEventListener("click", toggleSidebar);
@@ -239,13 +250,11 @@ function initChat() {
     .getElementById("sidebarOverlay")
     ?.addEventListener("click", closeSidebar);
 
-  // Logout
   ["logoutBtn", "logoutBtnMobile"].forEach((id) => {
     const btn = document.getElementById(id);
     if (btn) btn.addEventListener("click", logout);
   });
 
-  // Close user menu when clicking outside
   document.addEventListener("click", (e) => {
     const menu = document.getElementById("userMenu");
     if (menu && !menu.contains(e.target)) menu.classList.remove("show");
@@ -261,12 +270,10 @@ function toggleSidebar() {
   const overlay = document.getElementById("sidebarOverlay");
 
   if (window.innerWidth <= 768) {
-    // Mobile: slide in/out
     sidebarOpen = !sidebarOpen;
     sidebar.classList.toggle("open", sidebarOpen);
     overlay.classList.toggle("active", sidebarOpen);
   } else {
-    // Desktop: collapse/expand
     sidebar.classList.toggle("collapsed");
   }
 }
@@ -279,13 +286,10 @@ function closeSidebar() {
   overlay.classList.remove("active");
 }
 
-/** Fetch conversation list from API and render in sidebar */
 async function loadConversationList() {
   const list = document.getElementById("conversationList");
-  const empty = document.getElementById("sidebarEmpty");
   if (!list) return;
 
-  // Show loading skeleton
   list.innerHTML = buildSidebarSkeleton();
 
   try {
@@ -354,15 +358,12 @@ function buildConversationItem(conv) {
     </span>
   `;
 
-  // Click to load conversation
   btn.addEventListener("click", (e) => {
-    // Don't load if delete button was clicked
     if (e.target.closest(".conv-item__delete")) return;
     loadConversation(conv.id);
     closeSidebar();
   });
 
-  // Delete button
   btn.querySelector(".conv-item__delete").addEventListener("click", (e) => {
     e.stopPropagation();
     deleteConversation(conv.id);
@@ -385,7 +386,6 @@ function formatTimeAgo(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** Highlight the active conversation in sidebar */
 function setActiveConversation(id) {
   document.querySelectorAll(".conv-item").forEach((el) => {
     el.classList.toggle("conv-item--active", el.dataset.convId === id);
@@ -396,17 +396,14 @@ function setActiveConversation(id) {
 //  CONVERSATION ACTIONS
 // ══════════════════════════════════════════════════════════
 
-/** Load a past conversation from the API */
 async function loadConversation(convId) {
   const container = document.getElementById("chatMessages");
   const emptyState = document.getElementById("emptyState");
   if (!container) return;
 
-  // Set as active
   conversationId = convId;
   setActiveConversation(convId);
 
-  // Clear current messages and show skeleton
   clearMessagesDOM();
   if (emptyState) emptyState.style.display = "none";
   showMessageSkeleton(container);
@@ -423,13 +420,8 @@ async function loadConversation(convId) {
     if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
 
     const data = await res.json();
-
-    // Clear skeleton and render messages
     clearMessagesDOM();
 
-    // Filter to only user and assistant messages with actual content
-    // Skips: tool messages, system messages, and empty assistant messages
-    // (tool-request messages saved with content="" and tool_name="__tool_request__")
     const displayMessages = data.messages.filter(
       (m) =>
         (m.role === "user" || m.role === "assistant") &&
@@ -457,7 +449,6 @@ async function loadConversation(convId) {
   }
 }
 
-/** Delete a conversation */
 async function deleteConversation(convId) {
   if (!confirm("Delete this conversation? This cannot be undone.")) return;
 
@@ -469,12 +460,10 @@ async function deleteConversation(convId) {
 
     if (!res.ok) throw new Error("Failed to delete");
 
-    // If we deleted the active conversation, reset to new chat
     if (convId === conversationId) {
       startNewConversation();
     }
 
-    // Refresh sidebar
     loadConversationList();
   } catch (err) {
     console.error("Failed to delete conversation:", err);
@@ -482,7 +471,6 @@ async function deleteConversation(convId) {
   }
 }
 
-/** Start a fresh conversation */
 function startNewConversation() {
   conversationId = null;
   setActiveConversation(null);
@@ -507,6 +495,9 @@ async function handleSendMessage() {
   input.value = "";
   input.style.height = "auto";
 
+  // Remove any existing follow-up chips when sending a new message
+  removeFollowUpChips();
+
   await sendMessage(message);
 }
 
@@ -514,14 +505,11 @@ async function sendMessage(message) {
   if (isProcessing) return;
   isProcessing = true;
 
-  // Hide empty state
   const emptyState = document.getElementById("emptyState");
   if (emptyState) emptyState.style.display = "none";
 
-  // Append user message
   appendMessage("user", message);
 
-  // Show typing indicator
   const typing = document.getElementById("typingIndicator");
   if (typing) typing.classList.add("active");
   scrollToBottom();
@@ -530,7 +518,6 @@ async function sendMessage(message) {
     const token = getToken();
     const body = { message };
 
-    // Include conversation_id if we're continuing a conversation
     if (conversationId) {
       body.conversation_id = conversationId;
     }
@@ -549,18 +536,28 @@ async function sendMessage(message) {
       logout();
       return;
     }
+    if (res.status === 429) {
+      if (typing) typing.classList.remove("active");
+      appendErrorMessage({
+        type: "rate_limit",
+        icon: "schedule",
+        title: "Too many requests",
+        message: "You're sending messages too quickly. Please wait a moment.",
+        hint: "This limit resets automatically.",
+      });
+      isProcessing = false;
+      return;
+    }
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
     if (typing) typing.classList.remove("active");
     await handleStreamingResponse(res);
 
-    // Refresh sidebar to show new/updated conversation
     loadConversationList();
   } catch (err) {
     if (typing) typing.classList.remove("active");
     console.error(err);
 
-    // Network / fetch errors
     if (err.message && err.message.includes("Failed to fetch")) {
       appendErrorMessage({
         type: "network",
@@ -586,10 +583,6 @@ async function sendMessage(message) {
 
 // ── Streaming Response Handler ──────────────────────────
 
-/**
- * Map error codes from the backend to user-friendly error objects.
- * Each error has an icon, title, message, and optional action.
- */
 function parseErrorMessage(text) {
   if (text.startsWith("__ERROR_RATE_LIMIT__")) {
     const waitTime = text.replace("__ERROR_RATE_LIMIT__", "");
@@ -634,7 +627,6 @@ function parseErrorMessage(text) {
   return null;
 }
 
-/** Render a styled error card instead of a plain text message */
 function appendErrorMessage(errorObj) {
   const container = document.getElementById("chatMessages");
   if (!container) return;
@@ -668,6 +660,7 @@ async function handleStreamingResponse(response) {
   let fullText = "";
   let bubbleEl = null;
   let buffer = "";
+  let pendingSuggestions = null;
 
   try {
     while (true) {
@@ -676,7 +669,6 @@ async function handleStreamingResponse(response) {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // SSE events are separated by double newlines
       const events = buffer.split("\n\n");
       buffer = events.pop() || "";
 
@@ -686,7 +678,6 @@ async function handleStreamingResponse(response) {
         const data = line.substring(6);
         if (data === "[DONE]") continue;
 
-        // All events are now JSON-encoded
         try {
           const parsed = JSON.parse(data);
 
@@ -697,7 +688,13 @@ async function handleStreamingResponse(response) {
             continue;
           }
 
-          // Error event from backend
+          // Suggestions event — store for rendering after message
+          if (parsed.suggestions) {
+            pendingSuggestions = parsed.suggestions;
+            continue;
+          }
+
+          // Error event
           if (parsed.error) {
             fullText += parsed.error;
           }
@@ -707,11 +704,10 @@ async function handleStreamingResponse(response) {
             fullText += parsed.text;
           }
         } catch {
-          // Fallback: treat as raw text if JSON parsing fails
           fullText += data;
         }
 
-        // Check if the text is a structured error code
+        // Check for error codes
         const errorObj = parseErrorMessage(fullText);
         if (errorObj) {
           appendErrorMessage(errorObj);
@@ -732,7 +728,7 @@ async function handleStreamingResponse(response) {
       }
     }
 
-    // Process any remaining buffer
+    // Process remaining buffer
     if (buffer.trim()) {
       const line = buffer.trim();
       if (line.startsWith("data: ")) {
@@ -742,6 +738,7 @@ async function handleStreamingResponse(response) {
             const parsed = JSON.parse(data);
             if (parsed.text) fullText += parsed.text;
             if (parsed.error) fullText += parsed.error;
+            if (parsed.suggestions) pendingSuggestions = parsed.suggestions;
           } catch {
             fullText += data;
           }
@@ -749,7 +746,7 @@ async function handleStreamingResponse(response) {
       }
     }
 
-    // Final check: if remaining text is an error code
+    // Final error check
     if (fullText) {
       const errorObj = parseErrorMessage(fullText);
       if (errorObj) {
@@ -758,15 +755,64 @@ async function handleStreamingResponse(response) {
       }
     }
 
-    // Final render pass with full markdown
+    // Final markdown render
     if (bubbleEl) {
       const content = bubbleEl.querySelector(".msg-content");
       if (content) content.innerHTML = renderMarkdown(fullText);
+    }
+
+    // Render follow-up suggestion chips
+    if (pendingSuggestions && pendingSuggestions.length > 0) {
+      renderFollowUpChips(pendingSuggestions);
     }
   } catch (err) {
     if (!bubbleEl) appendMessage("ai", "Error receiving response.");
     console.error("Stream error:", err);
   }
+}
+
+// ══════════════════════════════════════════════════════════
+//  FOLLOW-UP SUGGESTION CHIPS
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Render follow-up suggestion chips below the last AI message.
+ * Chips are tappable — clicking one sends that question.
+ */
+function renderFollowUpChips(suggestions) {
+  const container = document.getElementById("chatMessages");
+  if (!container || !suggestions.length) return;
+
+  // Remove any existing chips first
+  removeFollowUpChips();
+
+  const chipsWrap = document.createElement("div");
+  chipsWrap.className = "followup-chips";
+  chipsWrap.id = "followupChips";
+
+  suggestions.forEach((text, i) => {
+    const chip = document.createElement("button");
+    chip.className = "followup-chip";
+    chip.style.animationDelay = `${i * 0.08}s`;
+    chip.innerHTML = `
+      <span class="material-symbols-outlined followup-chip__icon">arrow_forward</span>
+      <span class="followup-chip__text">${escapeHtml(text)}</span>
+    `;
+    chip.addEventListener("click", () => {
+      removeFollowUpChips();
+      sendSuggestedQuestion(text);
+    });
+    chipsWrap.appendChild(chip);
+  });
+
+  container.appendChild(chipsWrap);
+  scrollToBottom();
+}
+
+/** Remove follow-up chips from the DOM */
+function removeFollowUpChips() {
+  const existing = document.getElementById("followupChips");
+  if (existing) existing.remove();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -810,17 +856,14 @@ function createMessageElement(role, content, timestamp) {
   return wrap;
 }
 
-/** Remove all message elements (but keep empty state) */
 function clearMessagesDOM() {
   const container = document.getElementById("chatMessages");
   if (!container) return;
-  // Remove everything except #emptyState
   Array.from(container.children).forEach((child) => {
     if (child.id !== "emptyState") child.remove();
   });
 }
 
-/** Show loading skeleton while fetching conversation messages */
 function showMessageSkeleton(container) {
   const skeleton = document.createElement("div");
   skeleton.id = "msgSkeleton";

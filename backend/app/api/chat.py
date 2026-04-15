@@ -44,6 +44,7 @@ async def send_message(
     - Saves user message BEFORE calling LLM.
     - Saves assistant response AFTER streaming completes.
     - Streams SSE with JSON-encoded events to handle newlines in text.
+    - Sends suggested follow-up questions after the main response.
     """
     try:
         # ── Resolve conversation ─────────────────────────────────────
@@ -108,6 +109,17 @@ async def send_message(
                         role=MessageRole.assistant,
                         content=full_response,
                     )
+
+                # ── Generate suggested follow-ups (non-blocking) ─────
+                # Only generate if we got a real response (not an error code)
+                if full_response and not full_response.startswith("__ERROR_"):
+                    try:
+                        suggestions = agent.generate_follow_ups(full_response)
+                        if suggestions:
+                            yield f"data: {json.dumps({'suggestions': suggestions})}\n\n"
+                    except Exception as e:
+                        # Follow-ups are non-critical — never break the response
+                        logger.warning(f"Follow-up generation failed: {e}")
 
                 yield "data: [DONE]\n\n"
 

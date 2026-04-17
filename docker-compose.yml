@@ -4,19 +4,18 @@ services:
     container_name: backend
     env_file:
       - .env
+    environment:
+      - CHROMA_DIR=/app/data/chroma_db
+      - MEDICAL_DOCS_DIR=/app/data/medical_docs
     #ports:
     #  - "8000:8000"
     networks:
       - app_network
     volumes:
       - backend_uploads:/app/uploads
+      - chroma_db:/app/data/chroma_db
+      - model_cache:/root/.cache/huggingface
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   frontend:
     build: ./frontend
@@ -38,3 +37,5 @@ networks:
 
 volumes:
   backend_uploads:
+  chroma_db:
+  model_cache:

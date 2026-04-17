@@ -11,6 +11,7 @@ from groq import Groq
 from app.crud import prediction as crud_prediction
 from app.crud import conversation as crud_conversation
 from app.database.models import Message, MessageRole
+from app.ai.rag import rag_service
 
 # Setup logger
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ RETRYABLE_STATUS_CODES = {"429", "500", "502", "503", "504"}
 # Token estimation: ~4 characters per token for English text.
 CHARS_PER_TOKEN = 4
 MAX_CONTEXT_TOKENS = 6000  # conservative budget for input messages
-SYSTEM_PROMPT_BUDGET = 1500  # reserved for system prompt
+SYSTEM_PROMPT_BUDGET = 2000  # reserved for system prompt
 TOOL_DEFS_BUDGET = 500  # approximate tokens for tool JSON definitions
 
 
@@ -99,51 +100,63 @@ class ChatAgent:
 
             self.conversation_history.append(entry)
 
-    def get_system_prompt(self) -> str:
-        return """You are an AI medical assistant for a brain tumor classification application.
+    def get_system_prompt(self, rag_chunks: list = None) -> str:
+        base_prompt = """You are an AI medical assistant for a brain tumor classification application.
+    **YOUR ROLE:**
+    You help users understand their MRI scan results and provide educational information about brain tumors.
 
-**YOUR ROLE:**
-You help users understand their MRI scan results and provide educational information about brain tumors.
+    **YOUR CAPABILITIES:**
+    - Explain brain tumor types (glioblastoma, meningioma, pituitary tumors, etc.)
+    - Interpret MRI scan predictions with confidence scores
+    - Access user's scan history using the get_user_predictions tool
+    - Explain a specific scan result in clinical context using the explain_prediction tool
+    - Provide information about tumor stages and characteristics
+    - Answer questions about symptoms, diagnosis, and general medical information
+    
+    **CRITICAL SAFETY RULES:**
+    1. You are NOT a replacement for medical professionals
+    2. Always recommend consulting a doctor for medical advice
+    3. Never make definitive diagnoses or treatment recommendations
+    4. Be empathetic but factual - balance compassion with accuracy
+    5. If symptoms seem urgent, strongly recommend immediate medical attention
+    
+    **WHEN TO USE TOOLS:**
+    - User asks about "my scans" or "my history" → use get_user_predictions
+    - User asks about statistics or patterns → use get_user_statistics
+    - User mentions a specific scan number like "scan #5" → call explain_prediction directly
+    - User asks "explain my last scan" → first get_user_predictions(limit=1), then explain_prediction
+    - General medical questions → answer directly
+    
+    **TOOL USAGE RULES:**
+    - If scan ID is given → call explain_prediction directly
+    - If "last scan" → fetch first, then explain
+    - Never explain without fetching data
+    
+    **TONE:**
+    - Professional, warm, educational, empathetic
+    - Explain medical terms clearly
+    
+    **RESPONSE FORMAT:**
+    - 2–4 paragraphs max
+    - Use bullet points when needed
+    - End with: "Is there anything specific you'd like to know more about?"
 
-**YOUR CAPABILITIES:**
-- Explain brain tumor types (glioblastoma, meningioma, pituitary tumors, etc.)
-- Interpret MRI scan predictions with confidence scores
-- Access user's scan history using the get_user_predictions tool
-- Explain a specific scan result in clinical context using the explain_prediction tool
-- Provide information about tumor stages and characteristics
-- Answer questions about symptoms, diagnosis, and general medical information
+    Remember: Education and support, not diagnosis or treatment advice."""
 
-**CRITICAL SAFETY RULES:**
-1. You are NOT a replacement for medical professionals
-2. Always recommend consulting a doctor for medical advice
-3. Never make definitive diagnoses or treatment recommendations
-4. Be empathetic but factual - balance compassion with accuracy
-5. If symptoms seem urgent, strongly recommend immediate medical attention
+        # Inject retrieved medical context if available
+        if rag_chunks:
+            context_block = rag_service.format_context_for_prompt(rag_chunks)
+            if context_block:
+                base_prompt += f"""
+--- **[RETRIEVED MEDICAL CONTEXT]**
+The following information was retrieved from a curated medical knowledge base to help you answer the user's question accurately.
+Use it to ground your response — reference it when relevant (e.g., "According to clinical guidelines...").
+Do not contradict this context without strong justification.
 
-**WHEN TO USE TOOLS:**
-- User asks about "my scans" or "my history" → use get_user_predictions
-- User asks about statistics or patterns → use get_user_statistics
-- User mentions a specific scan number like "scan #5" or "scan 1" → call explain_prediction directly with prediction_id=5 (or whatever number they said)
-- User asks to "explain my last scan" without a number → FIRST call get_user_predictions with limit=1 to find the ID, THEN call explain_prediction with that ID
-- User asks general medical questions → answer from your knowledge, no tool needed
+{context_block}
+---"""
 
-**TOOL USAGE RULES:**
-- If the user gives you a scan number/ID, call explain_prediction DIRECTLY with that ID. Do NOT call get_user_predictions first — you already have the ID.
-- If the user says "my last scan" or "my most recent scan" (no number), FIRST call get_user_predictions with limit=1 to get the ID, THEN call explain_prediction.
-- You may chain tool calls across loop iterations. Do NOT try to explain a scan without first fetching the data.
-
-**TONE:**
-- Professional but warm
-- Educational and informative
-- Empathetic when discussing concerning results
-- Clear and jargon-free (explain medical terms)
-
-**RESPONSE FORMAT:**
-- Keep responses concise (2-4 paragraphs max)
-- Use bullet points for multiple items
-- Always end with "Is there anything specific you'd like to know more about?"
-
-Remember: Education and support, not diagnosis or treatment advice."""
+        return base_prompt
 
     def get_tools(self) -> List[Dict[str, Any]]:
         """Define tools in OpenAI format (Groq compatible)"""
@@ -548,17 +561,17 @@ Remember: Education and support, not diagnosis or treatment advice."""
     #  GROQ API CALL WITH RETRY
     # ══════════════════════════════════════════════════════════════
 
-    def _call_groq_with_retry(self, use_tools: bool = True):
-        """Make a Groq API call with exponential backoff retry.
-
-        Uses token-aware context window management instead of a hard slice.
-        """
+    def _call_groq_with_retry(self, use_tools: bool = True, rag_chunks: list = None):
+        """Make a Groq API call with exponential backoff retry. Uses token-aware context window management instead of a hard slice.rag_chunks — if provided, injected into the system prompt."""
         context_messages = self._build_context_messages()
 
         kwargs = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": self.get_system_prompt()},
+                {
+                    "role": "system",
+                    "content": self.get_system_prompt(rag_chunks=rag_chunks),
+                },
                 *context_messages,
             ],
             "max_tokens": self.max_tokens,
@@ -604,20 +617,19 @@ Remember: Education and support, not diagnosis or treatment advice."""
 
         raise last_exception
 
-    def _call_groq(self, use_tools: bool = True):
-        return self._call_groq_with_retry(use_tools=use_tools)
+    def _call_groq(self, use_tools: bool = True, rag_chunks: list = None):
+        return self._call_groq_with_retry(use_tools=use_tools, rag_chunks=rag_chunks)
 
-    async def send_message(self, user_message: str) -> AsyncIterator[str]:
+    async def send_message(self, user_message: str):
         """Send message and get response.
 
         Handles the full agentic loop: LLM call → tool execution → LLM call with results.
         Only yields the FINAL text response — never intermediate preambles.
         Tool-call messages are persisted to DB inside the loop.
 
-        IMPORTANT: The user message is already saved to DB and loaded into
-        conversation_history by _load_history_from_db() before this method
-        is called. Do NOT append it again here — that caused a duplicate
-        message bug where the LLM saw the same user message twice.
+        RAG: on the first iteration only, if the question is medical/educational,
+        retrieves relevant chunks from ChromaDB and injects them into the system
+        prompt. Subsequent iterations (after tool calls) reuse the same chunks.
         """
         if (
             not self.conversation_history
@@ -629,6 +641,21 @@ Remember: Education and support, not diagnosis or treatment advice."""
                 "User message not found at end of loaded history — appended manually"
             )
 
+        # ── RAG retrieval (once, before the loop) ────────────────────────
+        # Retrieve context only for medical/educational questions.
+        # Data queries ("my scans", "my statistics") skip this entirely.
+        rag_chunks = []
+        if rag_service.is_ready and rag_service.is_medical_query(user_message):
+            try:
+                rag_chunks = rag_service.retrieve(user_message, top_k=3)
+                if rag_chunks:
+                    logger.info(
+                        f"RAG: injecting {len(rag_chunks)} chunks into system prompt"
+                    )
+            except Exception as e:
+                logger.warning(f"RAG retrieval failed, continuing without context: {e}")
+                rag_chunks = []
+
         max_iterations = 5
         iteration = 0
 
@@ -637,7 +664,11 @@ Remember: Education and support, not diagnosis or treatment advice."""
             logger.info(f"Agent iteration {iteration}")
 
             try:
-                message = self._call_groq_with_retry(use_tools=True)
+                # Pass rag_chunks on every iteration so the enriched system
+                # prompt is consistent across tool-call rounds.
+                message = self._call_groq_with_retry(
+                    use_tools=True, rag_chunks=rag_chunks
+                )
 
                 # ── Path A: Structured tool calls ────────────────────
                 if message.tool_calls:
